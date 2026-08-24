@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* Enable class-based dark mode in Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background-color: #ffffff; 
+  --text-color: #111827;
+  --font-family: 'Poppins', sans-serif;
+}
+
+.dark {
+  --background-color: #09090b;
+  --text-color: #ffffff;
+}
+
+.App {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: var(--font-family);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  scroll-behavior: smooth;
+}
+
+.admin {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: var(--font-family);
+}
+
+button, a {
+  cursor: pointer;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: var(--font-family);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Background image applies specifically when dark mode is active, with a dark gradient overlay for text legibility */
+.dark body {
+  background-image: linear-gradient(rgba(9, 9, 11, 0.85), rgba(9, 9, 11, 0.85)), url('./assets/bg-image.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
