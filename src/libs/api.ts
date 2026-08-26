@@ -1,7 +1,7 @@
 // src/libs/api.ts
 
 const FAKE_BASE = "https://api.escuelajs.co/api/v1";
-const LOCAL_BASE = "http://localhost:8000/api";
+const LOCAL_BASE = "https://ingeri-api.onrender.com/api";
 
 async function baseRequest<T>(
   baseUrl: string,

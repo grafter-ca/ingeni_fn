@@ -3,6 +3,6 @@ import axios from 'axios';
 
 export const api = axios.create({
   // Ensure the baseURL explicitly includes '/api' if your backend expects it
-  baseURL: 'http://localhost:8000/api', 
+  baseURL: 'https://ingeri-api.onrender.com/api', 
   withCredentials: true, 
 });
