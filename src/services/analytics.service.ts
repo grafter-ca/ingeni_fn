@@ -5,7 +5,7 @@ export async function trackTrafficClick(data: {
   vendorId?: string;
 }) {
   try {
-    const apiUrl = import.meta.env.VITE_BETTER_AUTH_URL || 'http://localhost:8000/api';
+    const apiUrl = import.meta.env.VITE_BETTER_AUTH_URL || 'https://ingeri-api.onrender.com/api';
 
     const response = await fetch(`${apiUrl}/analytics/track-click`, {
       method: 'POST',

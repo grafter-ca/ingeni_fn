@@ -2,7 +2,7 @@
 import type { TrafficStat } from "../types/admin";
 
 export async function fetchVendorTrafficStats(vendorId: string): Promise<TrafficStat[]> {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  const baseUrl = import.meta.env.VITE_API_URL || 'https://ingeri-api.onrender.com/api';
   
   const response = await fetch(`${baseUrl}/analytics/vendor/${vendorId}`, {
     method: 'GET',
