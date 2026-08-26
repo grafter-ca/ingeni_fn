@@ -1,4 +1,4 @@
-// src/router.ts (or your routes file)
+// src/router.ts
 import { createBrowserRouter } from "react-router-dom";
 // Layouts
 import Layout from "./components/layout/Layout";
@@ -21,6 +21,8 @@ import OrderSuccess from "./pages/OrderSuccess";
 import MyOrders from "./pages/MyOrders";
 import Wishlist from "./pages/Wishlist";
 import { ProfilePage } from "./pages/ProfilePage";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 
 // Admin Pages
 import Admin from "./pages/admin/Admin";
@@ -29,6 +31,7 @@ import AdminCategories from "./pages/admin/category/AdminCategories";
 import AdminUserPage from "./pages/admin/users/AdminUserpage";
 import AdminOrdersPage from "./pages/admin/orders/AdminOrders";
 import AdminVendorPage from "./pages/admin/vendors/AdminVendorPage";
+import AdminVendorRequests from "./features/admin/home/AdminVendorRequests";
 
 // Vendor Views
 import { VendorOverview } from "./features/vendor/VendorOverview";
@@ -38,9 +41,9 @@ import { VendorSettingsView } from "./features/vendor/VendorSettingsView";
 
 // Security
 import ProtectedRoute from "./components/common/ProtectedRoute";
-import AdminVendorRequests from "./features/admin/home/AdminVendorRequests";
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
+
+// Protocol Handler component we created above
+import { ProtocolHandler } from "./components/common/ProtocolHandler";
 
 export const router = createBrowserRouter([
   // --- 1. STANDALONE AUTHENTICATION ROUTES ---
@@ -60,10 +63,16 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // --- 2. MAIN PUBLIC & CUSTOMER ROUTES ---
+  // --- 2. MAIN PUBLIC & CUSTOMER ROUTES (Includes Protocol Listener) ---
   {
     path: "/",
-    element: <Layout />,
+    element: (
+      <>
+        {/* ProtocolHandler listens for incoming deep links here */}
+        <ProtocolHandler />
+        <Layout />
+      </>
+    ),
     children: [
       { index: true, element: <Home /> },
       { path: "about", element: <About /> },
@@ -83,6 +92,9 @@ export const router = createBrowserRouter([
       },
       { path: "order-success/:orderNumber", element: <OrderSuccess /> },
       { path: "my-orders", element: <MyOrders /> },
+      // Added dummy routes or views to handle the protocol mappings safely:
+      { path: "open", element: <Home /> }, // Fallback route when /open?url=... is hit
+      { path: "scan-results", element: <Home /> }, // Implement your scan result view here
       { path: "*", element: <NotFound /> },
     ],
   },

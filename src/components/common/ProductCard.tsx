@@ -190,7 +190,7 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
           <div className="flex items-center gap-1.5 text-zinc-700 dark:text-gray-300">
             <Store size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />
             <span className="text-[11px] font-medium truncate">
-              {product.vendor?.storeName || "Ingeri Official Merchant"}
+              {product.vendor?.storeName || "Ingeni Official Merchant"}
             </span>
           </div>
 

@@ -3,11 +3,11 @@ FROM node:24-slim AS builder
 WORKDIR /app
 
 # Install dependencies (cached if package.json doesn't change)
-COPY frontend/package*.json ./
+COPY package*.json ./
 RUN npm install
 
 # Copy source and build
-COPY frontend/ .
+COPY . .
 RUN npm run build   
 
 # Stage 2: Serve with Nginx

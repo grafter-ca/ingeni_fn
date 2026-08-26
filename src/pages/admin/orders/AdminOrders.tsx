@@ -89,8 +89,7 @@ export default function AdminOrders() {
     const totalRevenue = safeOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
     const totalCommission = totalRevenue * 0.10;
     const pendingOrders = safeOrders.filter((order) => order.status?.toLowerCase() === "pending").length;
-    const paidOrdersCount = safeOrders.filter((order) => order.paymentStatus === "SUCCESS").length;
-    return { totalOrders, totalRevenue, totalCommission, pendingOrders, paidOrdersCount };
+    return { totalOrders, totalRevenue, totalCommission, pendingOrders };
   }, [filteredOrders]);
 
   const getStatusBadgeClass = (status?: string) => {
@@ -138,9 +137,10 @@ export default function AdminOrders() {
 
     safeItems.forEach((item) => {
       const vendorId = item.vendorId || item.product?.vendor?.id || "global";
-      const vendorName = item.product?.vendor?.storeName || item.product?.vendor?.id || "Global Marketplace";
+      const vendorName = getVendorLabel(item); // Utilizing getVendorLabel here
       const current = grouped.get(vendorId) || { vendorName, revenue: 0, items: [] };
       current.revenue += Number(item.priceAtPurchase || 0) * Number(item.quantity || 0);
+      current.items.push(item);
       grouped.set(vendorId, current);
     });
 

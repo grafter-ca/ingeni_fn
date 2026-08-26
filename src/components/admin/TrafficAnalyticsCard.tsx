@@ -1,6 +1,6 @@
 // src/components/admin/TrafficAnalyticsCard.tsx
 import React, { useEffect, useState } from 'react';
-import { MessageCircle, Phone, TrendingUp, Loader2, BarChart3 } from 'lucide-react';
+import { MessageCircle, Phone, Loader2, BarChart3 } from 'lucide-react';
 import { fetchVendorTrafficStats } from '../../services/admin-analytics.service';
 import type { TrafficStat } from '../../types/admin';
 

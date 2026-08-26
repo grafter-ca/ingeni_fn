@@ -1,5 +1,8 @@
 import { Globe, HeartHandshake, ShieldCheck, Sparkles } from "lucide-react";
 import type { LoginProps, ReasonProps, RegisterProps, ValueProps } from "../types";
+import clotheShop from "../assets/hero-slides/clothes-shop-chic.jpg"
+import electronicGadget from "../assets/hero-slides/electronic-gadgets.jpg"
+import fleshMarket from "../assets/hero-slides/fresh-produce-for-sale-kimironko-market-kigali-rwanda.jpg"
 
 
 export const RegisterFields : { label: string; type: string; placeholder: string; field: keyof RegisterProps }[] = [
@@ -50,9 +53,6 @@ export const navLinks = [
 ];
 
 // PRODUCT SIDEBAR VARIABLES
-
-
-
 export const PRICE_BRACKETS = [
   { label: "Under RF 1,000", min: 0, max: 1000 },
   { label: "RF 1,000 - RF 5,000", min: 1000, max: 5000 },
@@ -91,3 +91,24 @@ export const RWANDA_LOCATIONS = [
   "Nyagatare",
   "Bugesera",
 ];
+
+export const promoSlides = [
+    {
+      title: "Clothes & Shoes",
+      subtitle: "Latest streetwear & local fashion drops",
+      image: clotheShop,
+      tag: "Trending"
+    },
+    {
+      title: "Electronics & Gadgets",
+      subtitle: "Verified tech items with warranty",
+      image: electronicGadget,
+      tag: "Flash Sale"
+    },
+    {
+      title: "Fresh Marketplace",
+      subtitle: "Direct from Rural & Kigali vendors",
+      image: fleshMarket,
+      tag: "Organic"
+    }
+  ];

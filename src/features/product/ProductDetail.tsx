@@ -188,7 +188,7 @@ export default function ProductDetail() {
       try {
         await navigator.share({
           title: product?.title || "Product details",
-          text: `Check out ${product?.title} on Ingeri Store!`,
+          text: `Check out ${product?.title} on Ingeni Store!`,
           url: window.location.href,
         });
       } catch (err) {

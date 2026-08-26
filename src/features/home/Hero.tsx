@@ -4,32 +4,15 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Store, Tag, Zap } from "lucide-react";
 import Button from "../../components/ui/Button";
+import { promoSlides } from "../../constants";
+
 
 const HeroSection = () => {
   const navigate = useNavigate();
 
   // Auto-slide state for the Right-Top promotional card
   const [currentSlide, setCurrentSlide] = useState(0);
-  const promoSlides = [
-    {
-      title: "Clothes & Shoes",
-      subtitle: "Latest streetwear & local fashion drops",
-      image: "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&q=80&w=600",
-      tag: "Trending"
-    },
-    {
-      title: "Electronics & Gadgets",
-      subtitle: "Verified tech items with warranty",
-      image: "https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&q=80&w=600",
-      tag: "Flash Sale"
-    },
-    {
-      title: "Fresh Marketplace",
-      subtitle: "Direct from Rural & Kigali vendors",
-      image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600",
-      tag: "Organic"
-    }
-  ];
+
 
   useEffect(() => {
     const timer = setInterval(() => {

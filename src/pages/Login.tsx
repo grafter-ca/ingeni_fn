@@ -96,7 +96,7 @@ const Login: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Welcome Back</h1>
           <p className="text-xs text-zinc-500 dark:text-gray-400">
-            Sign in to access your Ingeri storefront and manage your marketplace activities.
+            Sign in to access your Ingeni storefront and manage your marketplace activities.
           </p>
         </div>
 
