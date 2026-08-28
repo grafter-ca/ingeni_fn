@@ -50,11 +50,11 @@ const HeroSection = () => {
           {/* Content */}
           <div className="relative z-10 space-y-3 max-w-xl">
             <h1 className="font-poppins font-bold text-2xl md:text-4xl text-white tracking-tight leading-tight drop-shadow-md">
-              The whole market, delivered to your door
+              The whole local market, delivered to your door
             </h1>
 
             <p className="font-poppins font-light text-xs md:text-sm text-zinc-200 leading-relaxed drop-shadow">
-              Shop hundreds of vendors inside Ingeni Modern Market. One cart, one checkout, paid with MoMo.
+             Skip crowded city trips and fragmented shops. Buy farm-fresh produce, local goods from verified vendors across any society in one single shared cart, paid securely with MoMo.
             </p>
 
             <div className="flex gap-3 pt-2 flex-wrap">
@@ -143,7 +143,9 @@ const HeroSection = () => {
             <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-blue-600/10 dark:bg-blue-600/25 rounded-full blur-3xl pointer-events-none group-hover:bg-blue-600/20 dark:group-hover:bg-blue-600/40 transition-all" />
 
             <div className="flex items-center justify-between z-10">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-blue-600 dark:text-blue-400 font-semibold">Instant MoMo Escrow</span>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1.5">
+                <ShieldCheck size={13} /> Secure MoMo Escrow
+              </span>
               <div className="w-7 h-7 rounded-xl bg-blue-600/10 dark:bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:rotate-12 transition-transform">
                 <Zap size={14} />
               </div>
@@ -151,10 +153,10 @@ const HeroSection = () => {
 
             <div className="space-y-1 z-10">
               <h3 className="font-poppins font-bold text-zinc-900 dark:text-white text-sm">
-                Secure Mobile Money Checkout
+                Pay with MoMo, Guaranteed
               </h3>
               <p className="text-[11px] text-zinc-600 dark:text-zinc-300 font-light leading-relaxed">
-                Funds are held safely in escrow until your order arrives at your doorstep.
+                Funds remain safely protected in escrow until your order arrives securely at your door.
               </p>
             </div>
 
