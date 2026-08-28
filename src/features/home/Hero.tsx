@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Store, Tag, Zap } from "lucide-react";
+import { ArrowRight, Store, Tag, Zap, ShieldCheck } from "lucide-react";
 import Button from "../../components/ui/Button";
 import { promoSlides } from "../../constants";
 import VendorRequestModal from "../../components/common/VendorRequestModal";
