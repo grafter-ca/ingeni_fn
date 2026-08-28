@@ -6,7 +6,7 @@ import { Input } from "../components/ui/Input";
 import { EastAfricanPhoneInput } from "../components/ui/EastAfricanPhoneInput";
 import CountrySelect from "../components/ui/CountrySelect";
 import { useAuthActions } from "../context/AuthContext";
-import { ArrowLeft, MailCheck, Eye, EyeOff, Link as LinkIcon, User as UserIcon } from "lucide-react";
+import { ArrowLeft, MailCheck, Eye, EyeOff, Link as LinkIcon } from "lucide-react";
 
 // Explicit interface matching the auth service context requirements
 interface RegisterPayloadProps {
