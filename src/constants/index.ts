@@ -93,22 +93,22 @@ export const RWANDA_LOCATIONS = [
 ];
 
 export const promoSlides = [
-    {
-      title: "Clothes & Shoes",
-      subtitle: "Latest streetwear & local fashion drops",
-      image: clotheShop,
-      tag: "Trending"
-    },
-    {
-      title: "Electronics & Gadgets",
-      subtitle: "Verified tech items with warranty",
-      image: electronicGadget,
-      tag: "Flash Sale"
-    },
-    {
-      title: "Fresh Marketplace",
-      subtitle: "Direct from Rural & Kigali vendors",
-      image: fleshMarket,
-      tag: "Organic"
-    }
-  ];
+  {
+    title: "Clothes & Shoes",
+    subtitle: "Latest streetwear & local fashion drops from verified creators",
+    image: clotheShop,
+    tag: "Trending"
+  },
+  {
+    title: "Electronics & Gadgets",
+    subtitle: "Verified tech items with warranty from trusted local sellers",
+    image: electronicGadget,
+    tag: "Flash Sale"
+  },
+  {
+    title: "Fresh Marketplace",
+    subtitle: "Farm-fresh produce and daily goods from vendors across society",
+    image: fleshMarket,
+    tag: "Organic"
+  }
+];
