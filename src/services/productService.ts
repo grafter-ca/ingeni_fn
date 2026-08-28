@@ -1,4 +1,4 @@
-import { localApi, fakeApiClient } from "../libs/api";
+import { localApi } from "../libs/api";
 import type { ApiProduct, ApiCategory, ProductFilters } from "../types/api";
 import type { ReviewItem } from "../types"; // Adjust path to your ReviewItem type if needed
 
@@ -18,7 +18,7 @@ export const productService = {
   getClient: () => localApi,
 
   /**
-   * AGGREGATED FETCH (Local + Fake API)
+   * FETCH PRODUCTS
    */
   getProducts: async (filters: ProductFilters = {}): Promise<ApiProduct[]> => {
     const params = new URLSearchParams();
@@ -35,39 +35,17 @@ export const productService = {
     params.append("offset", String(offset));
 
     const query = `?${params.toString()}`;
-
-    const [localRes, fakeRes] = await Promise.allSettled([
-      localApi.get<ApiProduct[]>(`/products${query}`),
-      fakeApiClient<ApiProduct[]>(`/products${query}`),
-    ]);
-
-    const allProducts: ApiProduct[] = [];
-
-    if (localRes.status === "fulfilled") {
-      const items = extractArray<ApiProduct>(localRes.value);
-      allProducts.push(
-        ...items.map((p) => ({
-          ...p,
-          id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
-        }))
-      );
-    }
-
-    if (fakeRes.status === "fulfilled") {
-      const items = extractArray<ApiProduct>(fakeRes.value);
-      allProducts.push(
-        ...items.map((p) => ({
-          ...p,
-          id: String(p.id).startsWith("fake-") ? String(p.id) : `fake-${p.id}`,
-        }))
-      );
-    }
-
-    return allProducts;
+    const response = await localApi.get<ApiProduct[]>(`/products${query}`);
+    
+    const items = extractArray<ApiProduct>(response);
+    return items.map((p) => ({
+      ...p,
+      id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
+    }));
   },
 
   /**
-   * AGGREGATED FETCH PRODUCT FOR PUBLIC (products/public)
+   * FETCH PRODUCTS FOR PUBLIC (products/public)
    */
   getProductsPublic: async (filters: ProductFilters = {}): Promise<ApiProduct[]> => {
     const params = new URLSearchParams();
@@ -80,35 +58,13 @@ export const productService = {
     params.append("offset", String(filters.offset ?? 0));
 
     const query = `?${params.toString()}`;
+    const response = await localApi.get<ApiProduct[]>(`/products/public${query}`);
 
-    const [localRes, fakeRes] = await Promise.allSettled([
-      localApi.get<ApiProduct[]>(`/products/public${query}`),
-      fakeApiClient<ApiProduct[]>(`/products${query}`),
-    ]);
-
-    const allProducts: ApiProduct[] = [];
-
-    if (localRes.status === "fulfilled") {
-      const items = extractArray<ApiProduct>(localRes.value);
-      allProducts.push(
-        ...items.map((p) => ({
-          ...p,
-          id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
-        }))
-      );
-    }
-
-    if (fakeRes.status === "fulfilled") {
-      const items = extractArray<ApiProduct>(fakeRes.value);
-      allProducts.push(
-        ...items.map((p) => ({
-          ...p,
-          id: String(p.id).startsWith("fake-") ? String(p.id) : `fake-${p.id}`,
-        }))
-      );
-    }
-
-    return allProducts;
+    const items = extractArray<ApiProduct>(response);
+    return items.map((p) => ({
+      ...p,
+      id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
+    }));
   },
 
   /**
@@ -116,33 +72,19 @@ export const productService = {
    */
   getProduct: async (id: string | number): Promise<ApiProduct> => {
     const idStr = String(id);
-
-    if (idStr.startsWith("local-")) {
-      const realId = idStr.replace("local-", "");
-      return await localApi.get<ApiProduct>(`/products/${realId}`);
-    }
-
-    if (idStr.startsWith("fake-")) {
-      const realId = idStr.replace("fake-", "");
-      return await fakeApiClient<ApiProduct>(`/products/${realId}`);
-    }
-
-    try {
-      return await localApi.get<ApiProduct>(`/products/${id}`);
-    } catch {
-      return await fakeApiClient<ApiProduct>(`/products/${id}`);
-    }
+    const realId = idStr.replace("local-", "");
+    return await localApi.get<ApiProduct>(`/products/${realId}`);
   },
 
   /**
-   * CREATE PRODUCT (LOCAL ONLY)
+   * CREATE PRODUCT
    */
   createProduct: async (data: FormData): Promise<ApiProduct> => {
     return await localApi.post<ApiProduct>(`/products`, data);
   },
 
   /**
-   * UPDATE PRODUCT (LOCAL ONLY)
+   * UPDATE PRODUCT
    */
   updateProduct: async (
     id: string,
@@ -153,57 +95,34 @@ export const productService = {
   },
 
   /**
-   * DELETE PRODUCT (LOCAL ONLY)
+   * DELETE PRODUCT
    */
   deleteProduct: async (id: string): Promise<void> => {
-    const idStr = String(id);
-
-    if (idStr.startsWith("fake-")) {
-      throw new Error("Cannot delete external (fake) product");
-    }
-
-    const realId = idStr.replace("local-", "");
+    const realId = String(id).replace("local-", "");
     await localApi.delete(`/products/${realId}`);
   },
 
   /**
-   * CATEGORY AGGREGATION
+   * CATEGORIES FETCH
    */
   getCategories: async (): Promise<ApiCategory[]> => {
-    const [localCats, fakeCats] = await Promise.allSettled([
-      localApi.get<ApiCategory[]>("/categories"),
-      fakeApiClient<ApiCategory[]>("/categories"),
-    ]);
+    const response = await localApi.get<ApiCategory[]>("/categories");
+    const items = extractArray<ApiCategory>(response);
 
-    const merged = new Map<string, ApiCategory>();
-
-    [localCats, fakeCats].forEach((res, index) => {
-      if (res.status === "fulfilled") {
-        const items = extractArray<ApiCategory>(res.value);
-        items.forEach((cat) => {
-          if (!cat?.name) return;
-          const key = cat.name.toLowerCase().trim();
-
-          if (!merged.has(key)) {
-            const prefix = index === 0 ? "local" : "fake";
-            const cleanId = String(cat.id).replace(/^(local-|fake-)/, '');
-            merged.set(key, {
-              ...cat,
-              id: `${prefix}-${cleanId}`,
-            });
-          }
-        });
-      }
+    return items.map((cat) => {
+      const cleanId = String(cat.id).replace(/^local-/, '');
+      return {
+        ...cat,
+        id: `local-${cleanId}`,
+      };
     });
-
-    return Array.from(merged.values());
   },
 
   /**
    * GET PRODUCT REVIEWS
    */
   getProductReviews: async (id: string | number): Promise<ReviewItem[]> => {
-    const realId = String(id).replace(/^(local-|fake-)/, "");
+    const realId = String(id).replace(/^local-/, "");
     const res: any = await localApi.get(`/products/${realId}/reviews`);
     return Array.isArray(res) ? res : res?.data || [];
   },
@@ -215,7 +134,7 @@ export const productService = {
     id: string | number,
     reviewData: Omit<ReviewItem, "id" | "date">
   ): Promise<ReviewItem> => {
-    const realId = String(id).replace(/^(local-|fake-)/, "");
+    const realId = String(id).replace(/^local-/, "");
     const res: any = await localApi.post(`/products/${realId}/reviews`, reviewData);
     return res?.data || res;
   },

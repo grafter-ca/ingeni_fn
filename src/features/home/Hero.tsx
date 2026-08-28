@@ -5,10 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Store, Tag, Zap } from "lucide-react";
 import Button from "../../components/ui/Button";
 import { promoSlides } from "../../constants";
-
+import VendorRequestModal from "../../components/common/VendorRequestModal";
 
 const HeroSection = () => {
   const navigate = useNavigate();
+    const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+
 
   // Auto-slide state for the Right-Top promotional card
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -68,7 +70,7 @@ const HeroSection = () => {
                 icon={Store}
                 variant="outline"
                 className="border-white/30 text-white hover:bg-white/10 font-mono text-xs py-2.5 px-5 rounded-xl transition cursor-pointer"
-                onClick={() => navigate("/vendor/register")}
+               onClick={() => setIsVendorModalOpen(true)}
               />
             </div>
           </div>
@@ -163,8 +165,13 @@ const HeroSection = () => {
           </motion.div>
 
         </div>
-
       </div>
+
+       {/* Render the Vendor Request Modal */}
+            <VendorRequestModal
+              isOpen={isVendorModalOpen}
+              onClose={() => setIsVendorModalOpen(false)}
+            />
     </section>
   );
 };

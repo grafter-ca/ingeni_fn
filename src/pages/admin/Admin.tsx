@@ -1,42 +1,74 @@
+// src/pages/admin/Admin.tsx
 import { useEffect, useState } from "react";
 import { useProductStore } from "../../store/productStore";
-import { useAuthActions } from "../../context/AuthContext";
+import { useAuthActions, useAuthState } from "../../context/AuthContext";
 import { Users, Package, ShoppingCart, ArrowUpRight } from "lucide-react";
 import StatCard from "../../features/admin/home/StatCard";
 import { useOrderStore } from "../../store/useOrderStore";
-import { TrafficAnalyticsCard } from "../../components/admin/TrafficAnalyticsCard"; // <-- Imported here
+import { TrafficAnalyticsCard } from "../../components/admin/TrafficAnalyticsCard";
 
 function Admin() {
-  // 1. Destructure BOTH the trigger function AND the actual raw array values
   const { fetchProducts, products } = useProductStore();
   const { fetchAllOrders, orders } = useOrderStore();
-  const { admin } = useAuthActions();    
+  const { admin } = useAuthActions(); 
+  const { isLoading: isAuthLoading, user } = useAuthState();
+  
   const [loading, setLoading] = useState(true);
   const [userCount, setUserCount] = useState(0);
 
   useEffect(() => {
+    // 1. Wait until global auth loading finishes
+    if (isAuthLoading) return;
+
+    // 2. If no user session exists, stop loading
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
     const init = async () => {
       setLoading(true);
+      
+      // Buffer safeguard: Give the browser cookie storage 100ms to stabilize 
+      // across cross-origin boundaries on Render deployment.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      if (!isMounted) return;
+
       try {
-        const [userRes] = await Promise.all([
-          admin.listUsers({ limit: 1 }),
+        const userRes = await admin.listUsers({ limit: 1 });
+        await Promise.all([
           fetchProducts(),
           fetchAllOrders()
         ]);
-        setUserCount(userRes?.total || 0);
+        if (isMounted) {
+          setUserCount(userRes?.total || 0);
+        }
       } catch (err) {
         console.error("Dashboard Sync Error:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
-    init();
-  }, [admin, fetchProducts, fetchAllOrders]);
 
-  // Keep the dashboard stats in real-time sync with changes to store arrays
-  useEffect(() => {
-    setUserCount(prev => prev);
-  }, [userCount]);
+    init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, isAuthLoading, admin, fetchProducts, fetchAllOrders]);
+
+  if (isAuthLoading) {
+    return <div className="text-white p-6 font-mono text-xs uppercase tracking-widest">Verifying session...</div>;
+  }
+
+  if (!user) {
+    return <div className="text-red-500 p-6 font-mono text-xs uppercase tracking-widest">Access Denied. Admin privileges required.</div>;
+  }
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">

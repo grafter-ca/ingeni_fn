@@ -11,9 +11,9 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>(() => {
-    // Check local storage or default to dark
+    // Check local storage or default to light
     const saved = localStorage.getItem("ingeni-theme");
-    return (saved === "light" || saved === "dark") ? saved : "dark";
+    return (saved === "light" || saved === "dark") ? saved : "light";
   });
 
   useEffect(() => {

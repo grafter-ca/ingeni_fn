@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { MessageCircle, Phone, Loader2, BarChart3 } from 'lucide-react';
 import { fetchVendorTrafficStats } from '../../services/admin-analytics.service';
 import type { TrafficStat } from '../../types/admin';
+import { useAuthState } from '../../context/AuthContext'; // <-- Import useAuthState
 
 interface TrafficAnalyticsCardProps {
   vendorId: string;
@@ -10,11 +11,15 @@ interface TrafficAnalyticsCardProps {
 }
 
 export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vendorId, vendorName }) => {
+  const { isLoading: isAuthLoading, user } = useAuthState(); // <-- Track auth status
   const [stats, setStats] = useState<TrafficStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Crucial: Do not fetch until auth is settled and a user exists
+    if (isAuthLoading || !user) return;
+
     let isMounted = true;
 
     async function loadStats() {
@@ -34,17 +39,17 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
     return () => {
       isMounted = false;
     };
-  }, [vendorId]);
+  }, [vendorId, isAuthLoading, user]); // <-- Include auth dependencies
 
   const whatsappCount = stats.find((s) => s.actionType === 'whatsapp')?._count.id || 0;
   const callCount = stats.find((s) => s.actionType === 'call')?._count.id || 0;
   const totalClicks = whatsappCount + callCount;
 
-  // Calculate percentages for the visual ratio bar
   const whatsappPercent = totalClicks > 0 ? (whatsappCount / totalClicks) * 100 : 50;
   const callPercent = totalClicks > 0 ? (callCount / totalClicks) * 100 : 50;
 
-  if (loading) {
+  // Show loader while waiting for auth OR data fetch
+  if (isAuthLoading || loading) {
     return (
       <div className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-white/5 rounded-2xl p-6 flex items-center justify-center h-48 shadow-sm">
         <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
@@ -86,7 +91,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
         <span className="text-xl font-mono font-bold text-zinc-900 dark:text-white">{totalClicks}</span>
       </div>
 
-      {/* Visual Proportion Bar (Graph representation) */}
+      {/* Visual Proportion Bar */}
       <div className="space-y-2">
         <div className="flex justify-between text-[11px] font-mono text-zinc-500">
           <span className="flex items-center gap-1 text-emerald-500">

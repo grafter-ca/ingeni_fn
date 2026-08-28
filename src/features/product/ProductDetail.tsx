@@ -576,7 +576,7 @@ const calculatedAverageRating = reviews.length > 0 ? totalRating / reviews.lengt
 
         {/* Reviews Section */}
         {!isReviewsLoading ? (
-          <div className="mt-16 border-t border-zinc-200 dark:border-white/10 pt-12 transition-colors">
+          <div className="border-zinc-200 dark:border-white/10 transition-colors">
             <ProductReviews
               productId={String(product.id)}
               reviews={reviews}

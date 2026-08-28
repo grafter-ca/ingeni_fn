@@ -1,44 +1,54 @@
 // src/libs/api.ts
 
-const FAKE_BASE = "https://api.escuelajs.co/api/v1";
-const LOCAL_BASE = "https://ingeri-api.onrender.com/api";
+const LOCAL_BASE = import.meta.env.VITE_BETTER_AUTH_URL || "https://ingeri-api.onrender.com/api";
 
 async function baseRequest<T>(
   baseUrl: string,
   endpoint: string,
-  options: RequestInit & { credentials? : RequestCredentials} = {}
+  options: RequestInit & { credentials?: RequestCredentials } = {}
 ): Promise<T> {
   const isFormData = options.body instanceof FormData;
-  const url = `${baseUrl}${endpoint}`;
+  
+  // Ensure correct slash separation between baseUrl and endpoint
+  const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${cleanBase}${cleanEndpoint}`;
 
   const response = await fetch(url, {
     ...options,
-    headers: isFormData ? {} : {
+    headers: isFormData ? { ...options.headers } : {
       "Content-Type": "application/json",
       ...options.headers,
     },
-    body:isFormData ? options.body : JSON.stringify(options.body),
-    // credentials: options.credentials || "omit",
-    credentials: "include",
+    body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
+    credentials: options.credentials || "include",
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    throw new Error(`Request failed at ${url}: ${errorText || response.statusText}`);
+    throw new Error(`Request failed at ${url} (${response.status}): ${errorText || response.statusText}`);
   }
 
-  return response.json();
+  // Handle empty responses gracefully
+  const text = await response.text();
+  return text ? JSON.parse(text) : ({} as T);
 }
 
-// --- Local API Wrapper ---
+// --- API Wrapper ---
 export const localApi = {
   get: async <T>(endpoint: string, params?: Record<string, any>): Promise<T> => {
-    let url = endpoint;
+    let queryPath = endpoint;
     if (params) {
-      const query = new URLSearchParams(params as any).toString();
-      url += `?${query}`;
+      // Filter out undefined or null query params to keep URLs clean
+      const cleanedParams = Object.fromEntries(
+        Object.entries(params).filter(([_, v]) => v !== undefined && v !== null)
+      );
+      const query = new URLSearchParams(cleanedParams).toString();
+      if (query) {
+        queryPath += queryPath.includes('?') ? `&${query}` : `?${query}`;
+      }
     }
-    return baseRequest<T>(LOCAL_BASE, url, { method: "GET", credentials: "include" });
+    return baseRequest<T>(LOCAL_BASE, queryPath, { method: "GET", credentials: "include" });
   },
 
   post: async <T>(endpoint: string, body?: any): Promise<T> =>
@@ -50,6 +60,3 @@ export const localApi = {
   delete: async <T>(endpoint: string): Promise<T> =>
     baseRequest<T>(LOCAL_BASE, endpoint, { method: "DELETE", credentials: "include" }),
 };
-
-// --- Fake API Wrapper ---
-export const fakeApiClient = <T>(endpoint: string) => baseRequest<T>(FAKE_BASE, endpoint);

@@ -4,47 +4,51 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { useAuthActions, useAuthState } from "../context/AuthContext";
-import { Store, ArrowLeft } from "lucide-react";
+import { Store, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuthActions();
+  const { user, isLoading } = useAuthState();
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { user, isLoading } = useAuthState();
 
+  // Helper function to handle role-based redirection cleanly
+  const redirectBasedOnRole = (role?: string) => {
+    const from = (location.state as any)?.from?.pathname;
+    if (from) {
+      navigate(from, { replace: true });
+      return;
+    }
+
+    const normalizedRole = role?.toLowerCase();
+    console.log("Auth success. Role detected:", normalizedRole);
+
+    switch (normalizedRole) {
+      case "admin":
+        navigate("/admin", { replace: true });
+        break;
+      case "vendor":
+        navigate("/vendor", { replace: true });
+        break;
+      case "user":
+      default:
+        navigate("/products", { replace: true });
+        break;
+    }
+  };
+
+  // Handle automatic redirect if user session already exists
   useEffect(() => {
     if (user && !isLoading) {
-      // 1. Check if the user was trying to access a specific guarded route
-      const from = (location.state as any)?.from?.pathname;
-      
-      if (from) {
-        navigate(from, { replace: true });
-        return;
-      }
-
-      const userRole = user.role?.toLowerCase();
-
-      console.log("Auth success. Role detected:", userRole);
-
-      switch (userRole) {
-        case "admin":
-          navigate("/admin", { replace: true });
-          break;
-        case "vendor":
-          navigate("/vendor", { replace: true });
-          break;
-        case "user":
-        default:
-          navigate("/products", { replace: true });
-          break;
-      }
+      redirectBasedOnRole(user.role);
     }
   }, [user, isLoading, navigate, location]);
 
@@ -64,14 +68,17 @@ const Login: React.FC = () => {
     setLocalError(null);
 
     try {
-      await login({
+      // 1. Execute login action (returns the user role from AuthContext)
+      const role = await login({
         email: formData.email,
         password: formData.password,
       });
-      
+
+      // 2. Immediately route based on returned role
+      redirectBasedOnRole(role);
+
     } catch (err: any) {
       setLocalError(err?.message || "Invalid email or password. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -90,44 +97,59 @@ const Login: React.FC = () => {
 
       {/* Main Form Container */}
       <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-6 md:p-8 flex flex-col gap-6 shadow-2xl rounded-3xl border border-zinc-200 dark:border-white/10 my-auto mx-auto transition-colors">
-        <div className="flex flex-col items-center text-center gap-2 border-b border-zinc-100 dark:border-white/10 pb-5">
+        <div className="flex flex-col items-center text-center gap-2 pb-2">
           <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-1">
             <Store size={24} />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Welcome Back</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Welcome Back</h1>
           <p className="text-xs text-zinc-500 dark:text-gray-400">
-            Sign in to access your Ingeni storefront and manage your marketplace activities.
+            Sign in to access your Ingeri storefront and manage your marketplace activities.
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
           <div className="space-y-1">
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="name@example.com"
-              value={formData.email}
-              onChange={(val: string) => handleChange("email", val)}
-            />
+            <div className="flex justify-between items-center ml-1">
+              <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Email Address</label>
+            </div>
+            <div className="relative flex items-center">
+              <Input
+                label=""
+                type="email"
+                placeholder="name@example.com"
+                value={formData.email}
+                onChange={(val: string) => handleChange("email", val)}
+              />
+            </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 relative">
             <div className="flex justify-between items-center ml-1">
-              <label className="text-zinc-700 dark:text-gray-300 font-mono text-xs">Password</label>
-              <Link 
-                to="#" 
+              <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Password</label>
+              <Link
+                to="#"
                 className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors"
               >
                 Forgot password?
               </Link>
             </div>
-            <Input
-              label=""
-              type="password"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={(val: string) => handleChange("password", val)}
-            />
+            <div className="relative flex items-center">
+              <Input
+                label=""
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(val: string) => handleChange("password", val)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
+                aria-label="Toggle password visibility"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {localError && (
@@ -141,12 +163,12 @@ const Login: React.FC = () => {
               disabled={loading} 
               label={
                 loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <div className="flex items-center justify-center gap-2.5 w-full">
+                    <svg className="animate-spin h-4 w-4 text-zinc-900 dark:text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                     </svg>
-                    <span>Signing in...</span>
+                    <span className="leading-none text-zinc-900 dark:text-white">Signing in...</span>
                   </div>
                 ) : (
                   "Sign In"
@@ -158,7 +180,7 @@ const Login: React.FC = () => {
         </form>
 
         <footer className="text-center pt-2 border-t border-zinc-100 dark:border-white/5">
-          <p className="text-zinc-500 dark:text-gray-400 text-xs">
+          <p className="text-zinc-500 dark:text-gray-400 md:text-xs text-[11px]">
             Don't have an account?{" "}
             <Link to="/register" className="text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-500 dark:hover:text-blue-300 transition-colors">
               Create an account

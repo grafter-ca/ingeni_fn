@@ -6,7 +6,17 @@ import { Input } from "../components/ui/Input";
 import { EastAfricanPhoneInput } from "../components/ui/EastAfricanPhoneInput";
 import CountrySelect from "../components/ui/CountrySelect";
 import { useAuthActions } from "../context/AuthContext";
-import { ArrowLeft, MailCheck } from "lucide-react";
+import { ArrowLeft, MailCheck, Eye, EyeOff, Link as LinkIcon, User as UserIcon } from "lucide-react";
+
+// Explicit interface matching the auth service context requirements
+interface RegisterPayloadProps {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  country: string;
+  image?: string;
+}
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -19,9 +29,15 @@ const Register: React.FC = () => {
     email: "",
     password: "",
     confirmPassword: "",
-    country: "Rwanda",
+    country: "RW",
     phone: "",
+    image: "", // Direct string URI input field
   });
+  
+  // Visibility toggles for passwords
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,16 +49,16 @@ const Register: React.FC = () => {
   const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) {
-      if (!formData.email || !formData.password || !formData.name) {
-        setLocalError("Please fill in all required fields.");
+      if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.confirmPassword) {
+        setLocalError("Please fill in all required account fields.");
         return;
       }
       if (formData.password !== formData.confirmPassword) {
-        setLocalError("Passwords do not match.");
+        setLocalError("Passwords do not match. Please verify and try again.");
         return;
       }
       if (formData.password.length < 8) {
-        setLocalError("Password must be at least 8 characters.");
+        setLocalError("Password is too short. It must be at least 8 characters long.");
         return;
       }
       setLocalError(null);
@@ -53,8 +69,8 @@ const Register: React.FC = () => {
   };
 
   const handleSubmitFinal = async () => {
-    if (!formData.phone || formData.phone.length < 10) {
-      setLocalError("Please enter a valid phone number.");
+    if (!formData.phone || formData.phone.length < 9) {
+      setLocalError("Please enter a valid phone number for your region.");
       return;
     }
 
@@ -62,16 +78,32 @@ const Register: React.FC = () => {
     setLocalError(null);
 
     try {
-      await register({
-        name: formData.name,
-        email: formData.email,
+      // Build strongly typed payload matching RegisterPayloadProps
+      const payload: RegisterPayloadProps = {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
-        phone: formData.phone,
+        phone: formData.phone.trim(),
         country: formData.country,
-      });
+      };
+
+      // Only assign image if the user provided a non-empty URI string
+      if (formData.image && formData.image.trim() !== "") {
+        payload.image = formData.image.trim();
+      }
+
+      await register(payload);
       setIsSubmitted(true);
     } catch (err: any) {
-      setLocalError(err?.message || "Registration failed. Please try again.");
+      console.error("Registration error details:", err);
+      const serverMessage = 
+        err?.data?.message || 
+        err?.response?.data?.message || 
+        err?.message || 
+        err?.link ||
+        "Registration failed. Email might already be in use.";
+      
+      setLocalError(Array.isArray(serverMessage) ? serverMessage.join(", ") : serverMessage);
     } finally {
       setLoading(false);
     }
@@ -94,9 +126,9 @@ const Register: React.FC = () => {
             <MailCheck size={32} />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight">Check your email</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Check your email</h1>
             <p className="text-sm text-zinc-500 dark:text-gray-400">
-              We've sent a verification link to <span className="text-zinc-900 dark:text-white font-medium">{formData.email}</span>. Please check your inbox to activate your account.
+              We've sent a secure verification link to <span className="text-zinc-900 dark:text-white font-medium">{formData.email}</span>. Please verify your inbox to activate your account.
             </p>
           </div>
 
@@ -127,61 +159,163 @@ const Register: React.FC = () => {
 
       <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-6 md:p-8 flex flex-col gap-6 shadow-2xl rounded-3xl border border-zinc-200 dark:border-white/10 my-auto mx-auto transition-colors">
         <div className="flex flex-col items-center text-center gap-2 border-b border-zinc-100 dark:border-white/10 pb-4">
-          <h1 className="text-2xl font-bold tracking-tight">Join Ingeri</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Join ingeni</h1>
           <p className="text-xs text-zinc-500 dark:text-gray-400 uppercase tracking-widest font-mono">
-            Step {step} of 2: {step === 1 ? "Account Credentials" : "Personal Information"}
+            Step {step} of 2: {step === 1 ? "Account Credentials" : "Personal Details"}
           </p>
         </div>
 
         <form onSubmit={handleNextStep} className="flex flex-col gap-4">
           {step === 1 ? (
             <>
-              <Input
-                label="Name"
-                type="text"
-                placeholder="Full name"
-                value={formData.name}
-                onChange={(val: string) => handleChange("name", val)}
-              />
-              <Input
-                label="Email Address"
-                type="email"
-                placeholder="name@example.com"
-                value={formData.email}
-                onChange={(val: string) => handleChange("email", val)}
-              />
-              <Input
-                label="Password"
-                type="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={(val: string) => handleChange("password", val)}
-              />
-              <Input
-                label="Confirm Password"
-                type="password"
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={(val: string) => handleChange("confirmPassword", val)}
-              />
+              <div className="space-y-1">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Full Name</label>
+                </div>
+                <div className="relative flex items-center">
+                  <Input
+                    label=""
+                    type="text"
+                    placeholder="e.g. Joe Doe"
+                    value={formData.name}
+                    onChange={(val: string) => handleChange("name", val)}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-1">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Email Address</label>
+                </div>
+                <div className="relative flex items-center">
+                  <Input
+                    label=""
+                    type="email"
+                    placeholder="name@example.com"
+                    value={formData.email}
+                    onChange={(val: string) => handleChange("email", val)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1 relative">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Password</label>
+                </div>
+                <div className="relative flex items-center">
+                  <Input
+                    label=""
+                    type={showPassword ? "text" : "password"}
+                    placeholder="At least 8 characters"
+                    value={formData.password}
+                    onChange={(val: string) => handleChange("password", val)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
+                    aria-label="Toggle password visibility"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1 relative">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Confirm Password</label>
+                </div>
+                <div className="relative flex items-center">
+                  <Input
+                    label=""
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Re-enter password"
+                    value={formData.confirmPassword}
+                    onChange={(val: string) => handleChange("confirmPassword", val)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
+                    aria-label="Toggle confirm password visibility"
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
               <div className="pt-2">
                 <Button label="Continue" type="submit" />
               </div>
             </>
           ) : (
             <>
+              {/* Avatar URI Input Section */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-zinc-700 dark:text-gray-300 font-mono text-xs ml-1">Phone Number</label>
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Profile Avatar URI (Optional)</label>
+                  <span className="text-[10px] text-zinc-400">e.g. Cloudinary / Unsplash URL</span>
+                </div>
+                
+                <div className="relative flex items-center">
+                  <div className="absolute left-3.5 text-zinc-400 pointer-events-none">
+                    <LinkIcon size={16} />
+                  </div>
+                  <input
+                    type="url"
+                    placeholder="https://res.cloudinary.com/.../avatar.png"
+                    value={formData.image}
+                    onChange={(e) => handleChange("image", e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 pl-10 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                </div>
+
+                {/* Example Quick-Fill Link */}
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] text-zinc-400">Need a quick test placeholder?</span>
+                  <button
+                    type="button"
+                    onClick={() => handleChange("image", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400")}
+                    className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium"
+                  >
+                    Use Sample URL
+                  </button>
+                </div>
+
+                {/* Live Preview Avatar Thumbnail */}
+                {formData.image && (
+                  <div className="flex items-center gap-3 p-2.5 bg-zinc-50 dark:bg-white/[0.02] border border-zinc-200 dark:border-white/10 rounded-xl mt-1">
+                    <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-200 dark:bg-white/10 flex items-center justify-center shrink-0 border border-zinc-300 dark:border-white/10">
+                      <img 
+                        src={formData.image} 
+                        alt="Avatar preview" 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          // Handle broken image links smoothly
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-zinc-500 truncate flex-1">{formData.image}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-zinc-700 dark:text-gray-100 font-base text-xs ml-1">Phone Number</label>
                 <EastAfricanPhoneInput
                   value={formData.phone}
                   onChange={(phone: string) => handleChange("phone", phone)}
                 />
               </div>
 
-              <CountrySelect
-                value={formData.country}
-                onChange={(country: string) => handleChange("country", country)}
-              />
+              <div className="flex flex-col gap-1.5">
+                <label className="text-zinc-700 dark:text-gray-100 font-base text-xs ml-1">Country / Region</label>
+                <CountrySelect
+                  value={formData.country}
+                  onChange={(country: string) => handleChange("country", country)}
+                />
+              </div>
 
               <div className="flex gap-3 pt-2">
                 <button
@@ -196,12 +330,12 @@ const Register: React.FC = () => {
                     disabled={loading} 
                     label={
                       loading ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <div className="flex items-center justify-center gap-2.5 w-full">
+                          <svg className="animate-spin h-4 w-4 shrink-0 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                           </svg>
-                          <span>Registering...</span>
+                          <span className="leading-none whitespace-nowrap overflow-hidden text-ellipsis">Registering...</span>
                         </div>
                       ) : (
                         "Complete Signup"
@@ -215,7 +349,7 @@ const Register: React.FC = () => {
           )}
 
           {localError && (
-            <div className="bg-red-500/10 border border-red-500/20 p-3.5 rounded-xl">
+            <div className="bg-red-500/10 border border-red-500/20 p-3.5 rounded-xl mt-1">
               <p className="text-red-600 dark:text-red-400 text-xs text-center font-medium">{localError}</p>
             </div>
           )}
