@@ -172,6 +172,7 @@ const Products = () => {
             <div className="flex-1 md:w-64">
               <SearchBar />
             </div>
+            <div className="flex gap-4">
 
             <select
               value={sortBy}
@@ -191,6 +192,7 @@ const Products = () => {
               <SlidersHorizontal size={18} />
               <span className="text-[10px] font-bold uppercase tracking-wider">Open Filters</span>
             </button>
+            </div>
           </div>
         </div>
       </div>

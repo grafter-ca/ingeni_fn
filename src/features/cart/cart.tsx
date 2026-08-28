@@ -17,7 +17,7 @@ const Cart = () => {
   // ── Empty Cart ──
   if (items.length === 0)
     return (
-      <section className="min-h-screen bg-gray-50 dark:bg-gray-900 font-poppins flex flex-col items-center justify-center gap-6 px-6 transition-colors duration-200">
+      <section className="h-screen bg-gray-50 dark:bg-gray-900 font-poppins flex flex-col items-center justify-center gap-6 px-6 transition-colors duration-200">
         <article className="flex flex-col items-center gap-4 text-center">
           <ShoppingBag size={64} className="text-gray-300 dark:text-gray-700" />
           <h2 className="font-bold text-2xl text-gray-900 dark:text-white">

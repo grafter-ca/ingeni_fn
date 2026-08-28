@@ -1,11 +1,19 @@
+// src/context/AuthContext.tsx
 import React, { createContext, useReducer, useCallback, useMemo, useEffect, useContext } from "react";
 import { authService } from "../services/auth.service";
 import { authReducer, initialAuthState } from "../reducers/userReducer";
 import type { LoginPayload, RegisterPayloadProps, UserRole } from "../types/api";
 
-// --- Types for Actions ---
+// --- Types for Actions & State ---
+interface AuthState {
+  user: any | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
+
 interface AuthActions {
-  login: (payload: LoginPayload, token?: string) => Promise<void>;
+  login: (payload: LoginPayload, token?: string) => Promise<UserRole>;
   register: (payload: RegisterPayloadProps) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
@@ -19,16 +27,21 @@ interface AuthActions {
   };
 }
 
-const AuthStateContext = createContext(initialAuthState);
+const AuthStateContext = createContext<AuthState>({
+  ...initialAuthState,
+  isLoading: true,
+});
+
 const AuthActionsContext = createContext<AuthActions | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(authReducer, initialAuthState);
   const { data: session, isPending } = authService.useSession();
 
-  // Sync Session with Reducer
+  // Sync Session with Reducer whenever session changes or resolves
   useEffect(() => {
     if (isPending) return;
+    
     if (session?.user) {
       dispatch({ 
         type: "LOGIN_SUCCESS", 
@@ -40,69 +53,91 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [session, isPending]);
 
   // --- Namespace: Core Auth ---
-  const login = useCallback(async (payload: LoginPayload, token?: string) => {
+  const login = useCallback(async (payload: LoginPayload, token?: string): Promise<UserRole> => {
     dispatch({ type: "LOGIN_START" });
-    const { error } = await authService.signIn(payload, token);
-    if (error) dispatch({ type: "LOGIN_ERROR", payload: error.message || "Login Failed" });
+    const response = await authService.signIn(payload, token);
+    
+    if (response?.error) {
+      const errorMsg = response.error.message || "Login Failed";
+      dispatch({ type: "LOGIN_ERROR", payload: errorMsg });
+      throw new Error(errorMsg);
+    }
+
+    const loggedInUser = response.data?.user || response.data;
+    const userRole = (loggedInUser?.role as UserRole) || 'user';
+
+    dispatch({ 
+      type: "LOGIN_SUCCESS", 
+      payload: { ...loggedInUser, role: userRole } 
+    });
+
+    return userRole;
   }, []);
 
-const register = useCallback(async (payload: RegisterPayloadProps) => {
+  const register = useCallback(async (payload: RegisterPayloadProps) => {
     dispatch({ type: "LOGIN_START" });
     const response = await authService.signUp(payload);
     
     if (response?.error) {
-      dispatch({ type: "LOGIN_ERROR", payload: response.error.message || "Registration Failed" });
-      throw new Error(response.error.message || "Registration Failed");
+      const errorMsg = response.error.message || "Registration Failed";
+      dispatch({ type: "LOGIN_ERROR", payload: errorMsg });
+      throw new Error(errorMsg);
     }
+
+    dispatch({ type: "LOGOUT" });
   }, []);
 
   const logout = useCallback(async () => {
-    await authService.signOut();
+    try {
+      await authService.signOut();
+    } finally {
+      dispatch({ type: "LOGOUT" });
+    }
   }, []);
 
   const updateProfile = useCallback(async (data: any) => {
-    const { error } = await authService.updateUser(data);
-    if (error) throw new Error(error.message);
+    await authService.updateUser(data);
+    dispatch({ type: "UPDATE_USER", payload: data });
   }, []);
 
-  // --- Namespace: Vendor (Open for Extension) ---
+  // --- Namespace: Vendor / Organization Actions ---
   const vendorActions = useMemo(() => ({
     create: async (name: string, slug: string) => {
-      const { data, error } = await authService.createOrganization(name, slug);
-      if (error) throw new Error(error.message);
-      return data;
+      return await authService.createOrganization(name, slug);
     },
     switch: async (orgId: string) => {
-      const { error } = await authService.setActiveOrg(orgId);
-      if (error) throw new Error(error.message);
+      await authService.setActiveOrg(orgId);
     }
   }), []);
 
-  // --- Namespace: Admin (Open for Extension) ---
+  // --- Namespace: Admin Actions ---
   const adminActions = useMemo(() => ({
     listUsers: async (query?: any) => {
-      const { data, error } = await authService.adminListUsers(query);
-      if (error) throw new Error(error.message);
-      return data; // Returns { users: [], total: number }
+      return await authService.adminListUsers(query);
     },
     setRole: async (userId: string, role: UserRole) => {
-      const { error } = await authService.adminSetRole(userId, role);
-      if (error) throw new Error(error.message);
+      await authService.adminSetRole(userId, role);
     }
   }), []);
 
-  // --- Final Composition (O/C Principle) ---
+  // Combine actions
   const actions = useMemo(() => ({
     login,
     register,
     logout,
     updateProfile,
     vendor: vendorActions,
-    admin: adminActions,
+    admin: adminActions
   }), [login, register, logout, updateProfile, vendorActions, adminActions]);
 
+  // Combine state values, injecting explicit isLoading based on session hook state
+  const memoizedState = useMemo(() => ({
+    ...state,
+    isLoading: isPending,
+  }), [state, isPending]);
+
   return (
-    <AuthStateContext.Provider value={{ ...state, isLoading: isPending || state.isLoading }}>
+    <AuthStateContext.Provider value={memoizedState}>
       <AuthActionsContext.Provider value={actions}>
         {children}
       </AuthActionsContext.Provider>
@@ -110,9 +145,19 @@ const register = useCallback(async (payload: RegisterPayloadProps) => {
   );
 };
 
-export const useAuthState = () => useContext(AuthStateContext);
+// --- Custom Hooks for Consumption ---
+export const useAuthState = () => {
+  const context = useContext(AuthStateContext);
+  if (!context) {
+    throw new Error("useAuthState must be used within an AuthProvider");
+  }
+  return context;
+};
+
 export const useAuthActions = () => {
   const context = useContext(AuthActionsContext);
-  if (!context) throw new Error("useAuthActions must be used within AuthProvider");
+  if (!context) {
+    throw new Error("useAuthActions must be used within an AuthProvider");
+  }
   return context;
 };

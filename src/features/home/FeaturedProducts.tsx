@@ -28,7 +28,7 @@ const FeaturedProducts = () => {
   }
 
   return (
-    <section className="px-6 py-10 border-b border-zinc-200 dark:border-gray-800 bg-white dark:bg-[#0a0a0a] relative overflow-hidden transition-colors">
+    <section className="px-4 py-10 border-b border-zinc-200 dark:border-gray-800 bg-white dark:bg-[#0a0a0a] relative overflow-hidden transition-colors">
       
       {/* Subtle Background Glow */}
       <div className="absolute top-1/3 right-10 w-[500px] h-[300px] bg-indigo-600/5 rounded-full blur-[140px] pointer-events-none" />

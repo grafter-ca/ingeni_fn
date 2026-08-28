@@ -97,7 +97,7 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
 
   return (
     <motion.div
-      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-600/10 transition-all duration-300 max-w-[280px] sm:max-w-none mx-auto w-full"
+      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-600/10 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full"
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       onClick={() => navigate(`/products/${product.id}`)}

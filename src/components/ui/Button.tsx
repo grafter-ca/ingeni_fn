@@ -10,11 +10,11 @@ const Button = ({
   iconPosition = "right",
   onClick,
 }: ButtonProps) => {
-  const base = "font-poppins font-medium px-4 py-3 text-sm uppercase tracking-widest transition-colors rounded-lg cursor-pointer flex items-center justify-center";
+  const base = "font-poppins font-medium px-2 py-3 text-sm capitalize tracking-widest transition-all rounded-xl cursor-pointer flex items-center justify-center shadow-sm";
 
   const styles = {
-    primary: "bg-gray-900 text-white hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200 shadow-sm",
-    outline: "border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5",
+    primary: "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100",
+    outline: "border border-zinc-200 dark:border-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5 bg-white dark:bg-transparent",
   };
 
   return (
@@ -23,9 +23,9 @@ const Button = ({
       onClick={onClick}
       type={type}
     >
-      {Icon && iconPosition === "left" && <Icon size={18} />}
+      {Icon && iconPosition === "left" && <Icon size={18} className="shrink-0" />}
       {label}
-      {Icon && iconPosition === "right" && <Icon size={18} />}
+      {Icon && iconPosition === "right" && <Icon size={18} className="shrink-0" />}
     </button>
   );
 };
