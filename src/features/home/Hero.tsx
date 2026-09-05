@@ -37,7 +37,7 @@ const HeroSection = () => {
           {/* Background Image with Brightness & Balanced Lighting */}
           <div className="absolute inset-0 z-0 bg-zinc-950">
             <img
-              src="malindi-court.jpg"
+              src="malindi-court.webp"
               alt="Ingeni Modern Market"
               width="800"
               height="500"

@@ -1,8 +1,8 @@
 import { Globe, HeartHandshake, ShieldCheck, Sparkles } from "lucide-react";
 import type { LoginProps, ReasonProps, RegisterProps, ValueProps } from "../types";
-import clotheShop from "../assets/hero-slides/clothes-shop-chic.jpg"
-import electronicGadget from "../assets/hero-slides/electronic-gadgets.jpg"
-import fleshMarket from "../assets/hero-slides/fresh-produce-for-sale-kimironko-market-kigali-rwanda.jpg"
+import clotheShop from "../assets/hero-slides/clothes-shop-chic.webp"
+import electronicGadget from "../assets/hero-slides/electronic-gadgets.webp"
+import fleshMarket from "../assets/hero-slides/fresh-produce-for-sale-kimironko-market-kigali-rwanda.webp"
 
 
 export const RegisterFields : { label: string; type: string; placeholder: string; field: keyof RegisterProps }[] = [
