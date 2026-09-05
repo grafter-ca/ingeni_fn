@@ -7,12 +7,14 @@ import "./global.css";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext"; 
 import { Toaster } from "react-hot-toast";
+import { SocketInitializer } from "./components/SocketInitializer";
 import './libs/socket.client';
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AuthProvider>
-      <ThemeProvider>      
+      <ThemeProvider>
+        <SocketInitializer />
         <RouterProvider router={router} /> 
         <Toaster 
           position="top-right"
@@ -37,7 +39,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             },
           }}
         />
-      </ThemeProvider>    {/* <--- Close it here */}
+      </ThemeProvider>
     </AuthProvider>
   </React.StrictMode>
 );

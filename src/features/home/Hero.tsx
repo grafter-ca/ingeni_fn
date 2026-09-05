@@ -9,12 +9,10 @@ import VendorRequestModal from "../../components/common/VendorRequestModal";
 
 const HeroSection = () => {
   const navigate = useNavigate();
-    const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
-
+  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
 
   // Auto-slide state for the Right-Top promotional card
   const [currentSlide, setCurrentSlide] = useState(0);
-
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -24,31 +22,35 @@ const HeroSection = () => {
   }, [promoSlides.length]);
 
   return (
-    <section className="max-w-7xl h-full md:h-[400px] mx-auto px-6 py-3 bg-white dark:bg-[#050505] transition-colors">
+    <section className="max-w-7xl mx-auto px-6 py-3 bg-white dark:bg-[#050505] transition-colors">
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        
+      {/* Main Grid Layout with fixed vertical rhythm to eliminate layout jumps */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
+
         {/* --- LEFT BOX: MAIN HERO BANNER (Spans 2 columns) --- */}
-        <motion.div 
-          className="lg:col-span-2 relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 flex flex-col justify-end p-4 md:p-8 h-[280px] min-h-[340px] md:min-h-[380px] shadow-2xl group bg-zinc-950"
+        <motion.div
+          className="lg:col-span-2 relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 flex flex-col justify-end p-6 md:p-8 min-h-[360px] md:min-h-[380px] shadow-2xl group bg-zinc-950"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           {/* Background Image with Brightness & Balanced Lighting */}
           <div className="absolute inset-0 z-0 bg-zinc-950">
-            <img 
-              src="malindi-court.jpg" 
-              alt="Ingeni Modern Market" 
+            <img
+              src="malindi-court.jpg"
+              alt="Ingeni Modern Market"
+              width="800"
+              height="500"
+              fetchPriority="high"
+              loading="eager"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-[0.75] contrast-[1.1]"
             />
             {/* Dark gradient overlay to keep text clearly readable */}
             <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/50 to-transparent" />
           </div>
 
-          {/* Content */}
-          <div className="relative z-10 space-y-3 max-w-xl">
+          {/* Content with a reserved minimum layout box to prevent reflows */}
+          <div className="relative z-10 space-y-3 max-w-xl min-h-[160px] flex flex-col justify-end">
             <h1 className="font-poppins font-bold text-2xl md:text-4xl text-white tracking-tight leading-tight drop-shadow-md">
               The whole local market, delivered to your door
             </h1>
@@ -70,18 +72,18 @@ const HeroSection = () => {
                 icon={Store}
                 variant="outline"
                 className="border-white/30 text-white hover:bg-white/10 font-mono text-xs py-2.5 px-5 rounded-xl transition cursor-pointer"
-               onClick={() => setIsVendorModalOpen(true)}
+                onClick={() => setIsVendorModalOpen(true)}
               />
             </div>
           </div>
         </motion.div>
 
         {/* --- RIGHT COLUMN (2 Stacked Interactive Cards) --- */}
-        <div className="flex flex-col gap-5">
-          
+        <div className="flex flex-col gap-4 md:gap-5 justify-between">
+
           {/* TOP RIGHT: Auto-Sliding Promo Box */}
-          <motion.div 
-            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-[160px] shadow-xl bg-zinc-950 flex flex-col justify-end p-5 transition-colors"
+          <motion.div
+            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-[175px] md:h-[180px] shadow-xl bg-zinc-950 flex flex-col justify-end p-5 transition-colors"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -95,9 +97,11 @@ const HeroSection = () => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <img 
-                  src={promoSlides[currentSlide].image} 
-                  alt={promoSlides[currentSlide].title} 
+                <img
+                  src={promoSlides[currentSlide].image}
+                  alt={promoSlides[currentSlide].title}
+                  width="400"
+                  height="180"
                   className="w-full h-full object-cover brightness-[0.7] contrast-[1.05]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
@@ -117,13 +121,13 @@ const HeroSection = () => {
               <p className="font-light text-[11px] text-zinc-200 drop-shadow">
                 {promoSlides[currentSlide].subtitle}
               </p>
-              
+
               {/* Pagination Dots */}
               <div className="flex gap-1.5 pt-1">
                 {promoSlides.map((_, idx) => (
-                  <span 
-                    key={idx} 
-                    className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-5 bg-blue-500' : 'w-1.5 bg-white/40'}`} 
+                  <span
+                    key={idx}
+                    className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-5 bg-blue-500' : 'w-1.5 bg-white/40'}`}
                   />
                 ))}
               </div>
@@ -131,8 +135,8 @@ const HeroSection = () => {
           </motion.div>
 
           {/* BOTTOM RIGHT: Interactive Animated Asset / Feature Box */}
-          <motion.div 
-            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-[190px] shadow-xl bg-zinc-50 dark:bg-[#0c0c0e] p-5 flex flex-col justify-between group cursor-pointer transition-colors"
+          <motion.div
+            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-[175px] md:h-[180px] shadow-xl bg-zinc-50 dark:bg-[#0c0c0e] p-5 flex flex-col justify-between group cursor-pointer transition-colors"
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.3 }}
             onClick={() => navigate("/products")}
@@ -169,11 +173,11 @@ const HeroSection = () => {
         </div>
       </div>
 
-       {/* Render the Vendor Request Modal */}
-            <VendorRequestModal
-              isOpen={isVendorModalOpen}
-              onClose={() => setIsVendorModalOpen(false)}
-            />
+      {/* Render the Vendor Request Modal */}
+      <VendorRequestModal
+        isOpen={isVendorModalOpen}
+        onClose={() => setIsVendorModalOpen(false)}
+      />
     </section>
   );
 };

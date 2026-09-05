@@ -8,6 +8,7 @@ import { useSearch } from "../../hooks/useSearch";
 import ProductCard from "../../components/common/ProductCard";
 import ProductSidebar from "../product/ProductSidebar";
 import SearchBar from "../../components/ui/SearchBar";
+import ProductCardSkeleton from "../../components/common/ProductCardSkeleton";
 
 type SortOption = "default" | "price_asc" | "price_desc" | "newest";
 
@@ -210,8 +211,7 @@ const Products = () => {
           />
         </aside>
 
-        {/* Product Grid Area Layout */}
-        <main className="flex-1 px-4 md:px-8 py-4 md:py-9">
+       <main className="flex-1 px-4 md:px-8 py-4 md:py-9">
           {error && (
             <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 mb-8 text-rose-600 dark:text-rose-400 text-xs font-mono flex items-center gap-3">
               <X size={14} /> telemetry error: {error}
@@ -220,8 +220,8 @@ const Products = () => {
 
           {isLoading && page === 1 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="aspect-3/4 bg-zinc-200 dark:bg-white/2 border border-zinc-200 dark:border-white/5 animate-pulse rounded-2xl" />
+              {Array.from({ length: 10 }).map((_, i) => (
+                <ProductCardSkeleton key={i} />
               ))}
             </div>
           ) : (
@@ -242,7 +242,7 @@ const Products = () => {
                           transition={{ duration: 0.25, delay: i * 0.02 }}
                           className="flex flex-col h-full"
                         >
-                          <ProductCard product={product} />
+                          <ProductCard product={product} priority={i < 4} />
                         </motion.div>
                       ))}
                     </motion.div>

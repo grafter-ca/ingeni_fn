@@ -18,13 +18,13 @@ import { useProductStore } from "../../store/productStore";
 import { useAuthState } from "../../context/AuthContext";
 import { ContactActionBtn } from "../common/ContactActionBtn";
 
-// --- MAIN PRODUCT CARD COMPONENT ---
 type Props = { 
   product: ApiProduct;
   onOpenAuthModal?: () => void;
+  priority?: boolean; // True for above-the-fold items
 };
 
-const ProductCard = ({ product, onOpenAuthModal }: Props) => {
+const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
   const navigate = useNavigate();
   const { handleAddToCart } = useCartActions();
   const { wishlistStatusMap, toggleWishlist } = useProductStore();
@@ -46,7 +46,6 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
   const averageRating = product.averageRating || product.rating || calculatedRatingFromReviews;
   const reviewCount = product.reviewCount || product.reviews?.length || 0;
 
-  // Resolve vendorId robustly whether it's top-level or nested inside the vendor object
   const resolvedVendorId = product.vendorId || product.vendor?.id;
 
   const handleAdd = useCallback(
@@ -75,12 +74,10 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
   const handleToggleWishlist = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
-      
       if (!user) {
         if (onOpenAuthModal) onOpenAuthModal();
         return;
       }
-
       try {
         setIsWishloading(true);
         await toggleWishlist(product.id);
@@ -97,19 +94,18 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
 
   return (
     <motion.div
-      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-600/10 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full"
+      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-600/10 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full select-none"
       whileHover={{ y: -4 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       onClick={() => navigate(`/products/${product.id}`)}
     >
-      {/* ── 1. Image & Overlay Container ── */}
+      {/* ── 1. Image & Overlay Container (Explicit aspect ratio locks CLS) ── */}
       <div className="relative overflow-hidden aspect-[4/3] sm:aspect-square bg-zinc-100 dark:bg-[#121212]">
         <img
           src={mainImage}
           alt={product.title}
-          fetchPriority="high"
+          {...(priority ? { fetchPriority: "high", loading: "eager" } : { loading: "lazy" })}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
         />
 
         {user && (
@@ -168,11 +164,11 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
       <div className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-2.5">
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
+            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest truncate max-w-[65%]">
               {product.category?.name || "General"}
             </span>
 
-            <div className="flex items-center gap-1 text-amber-500 font-mono text-[10px]">
+            <div className="flex items-center gap-1 text-amber-500 font-mono text-[10px] shrink-0">
               <Star size={12} className="fill-current" />
               <span>{Number(averageRating).toFixed(1)}</span>
               {reviewCount > 0 && (
@@ -182,7 +178,7 @@ const ProductCard = ({ product, onOpenAuthModal }: Props) => {
           </div>
 
           <h3 className="font-semibold text-zinc-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-            {product.title.slice(0, 20) + (product.title.length > 20 ? "..." : "")}
+            {product.title}
           </h3>
         </div>
 

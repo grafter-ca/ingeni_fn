@@ -59,7 +59,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
 
   if (error) {
     return (
-      <div className="bg-white dark:bg-[#0a0a0a] border border-red-500/20 rounded-2xl p-6 text-red-500 text-xs font-mono">
+      <div className="bg-white dark:bg-[#0a0a0a] border border-red-500/20 rounded-2xl p-6 text-red-500 text-xs">
         Failed to load traffic analytics: {error}
       </div>
     );
@@ -85,15 +85,15 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
       {/* Total Metric Overview */}
       <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#121212] border border-zinc-100 dark:border-white/5 flex items-baseline justify-between">
         <div className="space-y-0.5">
-          <span className="text-[10px] uppercase font-mono text-zinc-400 block">Total Interactions</span>
+          <span className="text-[10px] uppercase text-zinc-400 block">Total Interactions</span>
           <span className="text-xs text-zinc-600 dark:text-zinc-300">Customer clicks across products</span>
         </div>
-        <span className="text-xl font-mono font-bold text-zinc-900 dark:text-white">{totalClicks}</span>
+        <span className="text-xl font-bold text-zinc-900 dark:text-white">{totalClicks}</span>
       </div>
 
       {/* Visual Proportion Bar */}
       <div className="space-y-2">
-        <div className="flex justify-between text-[11px] font-mono text-zinc-500">
+        <div className="flex justify-between text-[11px] text-zinc-500">
           <span className="flex items-center gap-1 text-emerald-500">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span> WhatsApp ({Math.round(whatsappPercent)}%)
           </span>
@@ -120,8 +120,8 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
             <MessageCircle size={16} />
           </div>
           <div>
-            <span className="text-[10px] uppercase font-mono text-emerald-600 dark:text-emerald-400 block">WhatsApp</span>
-            <span className="text-sm font-mono font-bold text-zinc-900 dark:text-white">{whatsappCount} clicks</span>
+            <span className="text-[10px] uppercase text-emerald-600 dark:text-emerald-400 block">WhatsApp</span>
+            <span className="text-sm font-bold text-zinc-900 dark:text-white">{whatsappCount} clicks</span>
           </div>
         </div>
 
@@ -130,8 +130,8 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
             <Phone size={16} />
           </div>
           <div>
-            <span className="text-[10px] uppercase font-mono text-blue-600 dark:text-blue-400 block">Calls</span>
-            <span className="text-sm font-mono font-bold text-zinc-900 dark:text-white">{callCount} clicks</span>
+            <span className="text-[10px] uppercase text-blue-600 dark:text-blue-400 block">Calls</span>
+            <span className="text-sm font-bold text-zinc-900 dark:text-white">{callCount} clicks</span>
           </div>
         </div>
       </div>

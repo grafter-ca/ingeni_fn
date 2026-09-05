@@ -76,7 +76,7 @@ export default function GlobalSearch() {
         <div className="absolute top-full mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-md transition-colors">
           {filteredSuggestions.length > 0 ? (
             <div className="p-2 space-y-1">
-              <p className="px-3 py-1.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Products</p>
+              <p className="px-3 py-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Products</p>
               {filteredSuggestions.map((product) => (
                 <div
                   key={product.id}
@@ -97,7 +97,7 @@ export default function GlobalSearch() {
                     <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{product.title}</h4>
                     <p className="text-[10px] text-zinc-500 dark:text-zinc-400">{product.location || "Rwandan Marketplace"}</p>
                   </div>
-                  <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
                     RWF {Number(product.price).toLocaleString()}
                   </span>
                 </div>

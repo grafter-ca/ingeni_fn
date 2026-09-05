@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { io, Socket } from "socket.io-client";
 
 export type CartItem = {
   id: string; // The cart item unique ID
@@ -13,6 +14,9 @@ export type CartItem = {
 
 type CartStore = {
   items: CartItem[];
+  socket: Socket | null;
+  initSocket: () => void;
+  disconnectSocket: () => void;
   addToCart: (product: {
     id: string; 
     name: string; 
@@ -32,6 +36,55 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      socket: null,
+
+      initSocket: () => {
+        if (get().socket) return;
+
+        const socketInstance = io("https://ingeri-api.onrender.com/ws", {
+          withCredentials: true,
+          transports: ["websocket", "polling"],
+        });
+
+        socketInstance.on("connect", () => {
+          console.log("⚡ Cart Store connected to real-time socket server:", socketInstance.id);
+        });
+
+        socketInstance.on("disconnect", (reason) => {
+          console.log("❌ Cart Store disconnected from Socket.io server:", reason);
+        });
+
+        // Listen for product updates that might affect cart items (e.g. price change or deletion)
+        socketInstance.on("productUpdated", (updatedProduct) => {
+          set((state) => ({
+            items: state.items.map((item) =>
+              String(item.productId) === String(updatedProduct.id)
+                ? {
+                    ...item,
+                    name: updatedProduct.title || item.name,
+                    price: updatedProduct.price !== undefined ? updatedProduct.price : item.price,
+                  }
+                : item
+            ),
+          }));
+        });
+
+        socketInstance.on("productDeleted", ({ id }) => {
+          set((state) => ({
+            items: state.items.filter((item) => String(item.productId) !== String(id)),
+          }));
+        });
+
+        set({ socket: socketInstance });
+      },
+
+      disconnectSocket: () => {
+        const { socket } = get();
+        if (socket) {
+          socket.disconnect();
+          set({ socket: null });
+        }
+      },
 
       addToCart: (product) =>
         set((state) => {
@@ -79,6 +132,8 @@ export const useCartStore = create<CartStore>()(
     {
       name: "ingeni_cart",
       storage: createJSONStorage(() => localStorage),
+      // CRITICAL FIX: Only persist the 'items' array. Excludes 'socket' and other non-serializable properties.
+      partialize: (state) => ({ items: state.items }),
       // MIGRATION: This runs when the stored version doesn't match
       onRehydrateStorage: () => (state) => {
         if (state) {

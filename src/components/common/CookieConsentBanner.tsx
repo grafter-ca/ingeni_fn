@@ -30,7 +30,7 @@ const CookieConsentBanner = () => {
   return (
     <div className="fixed bottom-24 md:bottom-6 left-6 right-6 md:left-8 md:max-w-md z-[9999] bg-[#0c0c0e] border border-white/15 p-6 rounded-2xl shadow-2xl backdrop-blur-xl font-poppins flex flex-col gap-4">
       <div>
-        <h3 className="text-white text-xs font-mono font-bold uppercase tracking-widest">Cookie Protocol Matrix</h3>
+        <h3 className="text-white text-xs font-bold uppercase tracking-widest">Cookie Protocol Matrix</h3>
         <p className="text-xs text-gray-400 font-light mt-1.5 leading-relaxed">
           We use cookies to enhance your browsing experience, maintain secure authentication nodes, and analyze platform traffic. Read our <Link to="/privacy" className="text-blue-400 underline hover:text-white">Privacy Policy</Link> to learn more.
         </p>

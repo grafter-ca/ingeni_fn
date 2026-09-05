@@ -282,6 +282,44 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         }));
       });
     }
+
+    // Real-time synchronization listeners for vendor state updates
+    if (!socket.hasListeners('vendorUpdated')) {
+      socket.on('vendorUpdated', (updatedVendor: ApiVendor) => {
+        set((state) => {
+          const vendors = state.vendors.map((v) =>
+            String(v.id) === String(updatedVendor.id) ? updatedVendor : v
+          );
+          return {
+            vendors,
+            selectedVendor: state.selectedVendor && String(state.selectedVendor.id) === String(updatedVendor.id) ? updatedVendor : state.selectedVendor,
+          };
+        });
+        get().applyFilters();
+      });
+    }
+
+    if (!socket.hasListeners('vendorDeleted')) {
+      socket.on('vendorDeleted', ({ id }: { id: string }) => {
+        set((state) => {
+          const vendors = state.vendors.filter((v) => String(v.id) !== String(id));
+          return {
+            vendors,
+            selectedVendor: state.selectedVendor && String(state.selectedVendor.id) === String(id) ? null : state.selectedVendor,
+          };
+        });
+        get().applyFilters();
+      });
+    }
+
+    if (!socket.hasListeners('vendorCreated')) {
+      socket.on('vendorCreated', (newVendor: ApiVendor) => {
+        set((state) => ({
+          vendors: [newVendor, ...state.vendors],
+        }));
+        get().applyFilters();
+      });
+    }
   },
 
   addVendor: async () => {
