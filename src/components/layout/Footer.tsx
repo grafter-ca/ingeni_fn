@@ -12,7 +12,7 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-white dark:bg-[#050505] border-t border-zinc-300 dark:border-white/10 text-zinc-600 dark:text-gray-400 relative overflow-hidden mb-18 md:mb-0 transition-colors">
+    <footer className="bg-white dark:bg-[#050505] border-t border-zinc-300 dark:border-white/10 text-zinc-600 dark:text-gray-400 relative overflow-hidden mb-16 md:mb-0 transition-colors">
 
       {/* Subtle Background Glow */}
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-blue-600/5 rounded-full blur-[140px] pointer-events-none" />
@@ -25,9 +25,12 @@ const Footer = () => {
             {/* Logo & Brand Image */}
             <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
               <div className="w-10 h-10">
-                <img 
-                  src="/ingeni-logo-2.png" 
-                  alt="Ingeni Logo" 
+                <img
+                  src="/ingeni-logo-2.png"
+                  alt="Ingeni Logo"
+                  width="40"
+                  height="40"
+                  fetchPriority="high"
                   className="w-full h-full object-cover"
                 />
               </div>

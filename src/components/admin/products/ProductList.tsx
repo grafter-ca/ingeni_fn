@@ -48,7 +48,7 @@ export default function ProductList({ onEdit }: { onEdit: (product: any) => void
             </span>
 
             {/* Price */}
-            <span className="col-span-2 text-sm font-mono font-bold text-white">
+            <span className="col-span-2 text-sm font-bold text-white">
               {Number(product.price).toLocaleString()} <span className="text-[10px] text-gray-600">RWF</span>
             </span>
 

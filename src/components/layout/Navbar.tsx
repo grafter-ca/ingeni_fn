@@ -42,17 +42,20 @@ const Navbar = () => {
       {/* Top Navbar */}
       <header className="font-poppins bg-white/90 dark:bg-[#050505]/95 border-b border-zinc-200 dark:border-white/5 sticky top-0 z-50 backdrop-blur-md transition-colors">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          
+
           {/* Logo & Brand Image */}
-          <Link to="/" className="flex items-center justify-center gap-1.5 shrink-0 group">
-            <div className="w-10 h-10">
-              <img 
-                src="/ingeni-logo-2.png" 
-                alt="Ingeni Logo" 
+          <Link to="/" className="flex items-center gap-2 shrink-0 group">
+            <div className="w-10 h-10 shrink-0">
+              <img
+                src="/ingeni-logo-2.png"
+                alt="Ingeni Logo"
+                width="40"
+                height="40"
+                fetchPriority="high"
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-bold font-serif text-xl -mb-2 tracking-widest text-zinc-900 dark:text-white uppercase font-mono">
+            <span className="font-bold text-xl tracking-widest text-zinc-900 dark:text-white uppercase font-mono leading-none">
               Ingeni
             </span>
           </Link>
@@ -120,8 +123,8 @@ const Navbar = () => {
             {user ? (
               <UserProfile user={user} onLogout={handleLogout} />
             ) : (
-              <Link 
-                to="/login" 
+              <Link
+                to="/login"
                 className="border border-green-500/20 bg-green-50 dark:bg-green-600/10 text-zinc-800 dark:text-gray-100 hover:bg-green-100 dark:hover:bg-green-600/20 text-xs font-mono uppercase tracking-wider transition cursor-pointer px-3.5 py-1.5 rounded-lg"
               >
                 Sign In
@@ -191,7 +194,7 @@ const Navbar = () => {
               )}
             </ul>
 
-             {/* Theme Toggle Button */}
+            {/* Theme Toggle Button */}
             <ThemeToggle />
 
             <button
@@ -221,9 +224,9 @@ const Navbar = () => {
                 </button>
               </div>
             ) : (
-                <Link to="/login" onClick={handleMenuClose} className="text-xs border-t-2 pt-2 border-zinc-200 dark:border-white/10 uppercase tracking-widest text-zinc-600 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white font-mono text-center cursor-pointer w-full py-2 rounded-lg transition-colors">
-                  Sign In
-                </Link>
+              <Link to="/login" onClick={handleMenuClose} className="text-xs border-t-2 pt-2 border-zinc-200 dark:border-white/10 uppercase tracking-widest text-zinc-600 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white font-mono text-center cursor-pointer w-full py-2 rounded-lg transition-colors">
+                Sign In
+              </Link>
             )}
           </div>
         )}
@@ -231,14 +234,14 @@ const Navbar = () => {
 
       {/* --- FLOATING BOTTOM NAVIGATION BAR FOR MOBILE --- */}
       <nav aria-label="Mobile Navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-2xl border-t border-zinc-200 dark:border-white/10 px-2 py-2 flex items-center justify-around shadow-2xl pb-safe transition-colors">
-        
+
         {/* Home Tab */}
         <Link
           to="/"
           className="relative flex flex-col items-center justify-center w-14 py-1 cursor-pointer group"
         >
           {location.pathname === "/" ? (
-            <motion.div 
+            <motion.div
               layoutId="icyuziActiveNav"
               className="absolute -top-6 w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/40 border-4 border-white dark:border-[#0c0c0e]"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -261,7 +264,7 @@ const Navbar = () => {
           className="relative flex flex-col items-center justify-center w-14 py-1 cursor-pointer group"
         >
           {location.pathname.startsWith("/products") ? (
-            <motion.div 
+            <motion.div
               layoutId="icyuziActiveNav"
               className="absolute -top-6 w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/40 border-4 border-white dark:border-[#0c0c0e]"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -285,7 +288,7 @@ const Navbar = () => {
             className="relative flex flex-col items-center justify-center w-14 py-1 cursor-pointer group"
           >
             {location.pathname === "/wishlist" ? (
-              <motion.div 
+              <motion.div
                 layoutId="icyuziActiveNav"
                 className="absolute -top-6 w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/40 border-4 border-white dark:border-[#0c0c0e]"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -309,7 +312,7 @@ const Navbar = () => {
           className="relative flex flex-col items-center justify-center w-14 py-1 cursor-pointer group"
         >
           {location.pathname === "/cart" ? (
-            <motion.div 
+            <motion.div
               layoutId="icyuziActiveNav"
               className="absolute -top-6 w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/40 border-4 border-white dark:border-[#0c0c0e]"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -342,7 +345,7 @@ const Navbar = () => {
           className="relative flex flex-col items-center justify-center w-14 py-1 cursor-pointer group"
         >
           {location.pathname === "/profile" || location.pathname === "/login" ? (
-            <motion.div 
+            <motion.div
               layoutId="icyuziActiveNav"
               className="absolute -top-6 w-11 h-11 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/40 border-4 border-white dark:border-[#0c0c0e]"
               transition={{ type: "spring", stiffness: 400, damping: 30 }}

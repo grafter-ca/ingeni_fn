@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { productService } from "../services/productService";
+import { io, Socket } from "socket.io-client";
 import type { ApiCategory, ApiProduct, ProductFormData } from "../types/api";
 
 export interface ApiVendor {
@@ -25,6 +26,7 @@ interface ProductState {
   vendors: ApiVendor[];
   currentProductReviews: ApiReview[];
   wishlistStatusMap: Record<string, boolean>; // productId -> boolean
+  socket: Socket | null;
 
   // UI/Context State
   isLoading: boolean;
@@ -43,6 +45,8 @@ interface ProductState {
   formData: ProductFormData;
 
   // Actions
+  initSocket: () => void;
+  disconnectSocket: () => void;
   fetchProducts: (params?: any) => Promise<void>;
   fetchPublicProducts: (params?: any) => Promise<void>;
   fetchMoreProducts: () => Promise<void>;
@@ -79,6 +83,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   vendors: [],
   currentProductReviews: [],
   wishlistStatusMap: {},
+  socket: null,
   isLoading: false,
   isFetchingMore: false,
   error: null,
@@ -101,6 +106,67 @@ export const useProductStore = create<ProductState>((set, get) => ({
   _sanitizeImages: (images: any[] | undefined): string[] => {
     if (!Array.isArray(images)) return [];
     return images.map((img) => (typeof img === "string" ? img : img?.url || ""));
+  },
+
+  initSocket: () => {
+    if (get().socket) return;
+
+    const socketInstance = io("https://ingeri-api.onrender.com/ws", {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+    });
+
+    socketInstance.on("connect", () => {
+      console.log("⚡ Connected to real-time socket server:", socketInstance.id);
+    });
+
+    socketInstance.on("disconnect", (reason) => {
+      console.log("❌ Disconnected from Socket.io server:", reason);
+    });
+
+    socketInstance.on("productUpdated", (updatedProduct) => {
+      const sanitized = {
+        ...updatedProduct,
+        images: get()._sanitizeImages(updatedProduct.images),
+      };
+
+      set((state) => {
+        const updatedProducts = state.products.map((p) =>
+          String(p.id) === String(sanitized.id) ? sanitized : p
+        );
+        return { products: updatedProducts };
+      });
+      get().applyFilters();
+    });
+
+    socketInstance.on("productCreated", (newProduct) => {
+      const sanitized = {
+        ...newProduct,
+        images: get()._sanitizeImages(newProduct.images),
+      };
+
+      set((state) => ({
+        products: [sanitized, ...state.products],
+      }));
+      get().applyFilters();
+    });
+
+    socketInstance.on("productDeleted", ({ id }) => {
+      set((state) => ({
+        products: state.products.filter((p) => String(p.id) !== String(id)),
+      }));
+      get().applyFilters();
+    });
+
+    set({ socket: socketInstance });
+  },
+
+  disconnectSocket: () => {
+    const { socket } = get();
+    if (socket) {
+      socket.disconnect();
+      set({ socket: null });
+    }
   },
 
   fetchProducts: async (params = {}) => {
@@ -412,7 +478,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   getVendorId: () =>
     get().selectedVendorId || get().products[0]?.vendorId || null,
 
- // --- REVIEWS & WISHLIST STORE METHODS ---
+  // --- REVIEWS & WISHLIST STORE METHODS ---
 
   fetchReviews: async (productId: string) => {
     try {
@@ -450,7 +516,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
       }));
       return isWishlisted;
     } catch (err) {
-      // Fallback for guests: check local storage
       try {
         const localWishlist = JSON.parse(localStorage.getItem("guest_wishlist") || "[]");
         const isWishlisted = localWishlist.includes(productId);
@@ -474,7 +539,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
       }));
       return newStatus;
     } catch (err: any) {
-      // If unauthorized, gracefully handle wishlist locally for anonymous users!
       if (err?.response?.status === 401 || err?.message?.includes("Unauthorized")) {
         const currentStatus = get().wishlistStatusMap[productId] || false;
         const newStatus = !currentStatus;

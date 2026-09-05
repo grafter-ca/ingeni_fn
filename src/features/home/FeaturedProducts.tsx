@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { useProductStore } from "../../store/productStore";
 import ProductCard from "../../components/common/ProductCard";
+import ProductCardSkeleton from "../../components/common/ProductCardSkeleton";
 
 const FeaturedProducts = () => {
   const { products, isLoading, fetchPublicProducts } = useProductStore();
@@ -57,7 +58,7 @@ const FeaturedProducts = () => {
 
           <button
             onClick={() => navigate("/products")}
-            className="group flex items-center gap-2 font-poppins text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-gray-300 hover:text-zinc-900 dark:hover:text-white transition-colors bg-zinc-100 dark:bg-white/5 border border-zinc-300 dark:border-white/10 px-4 py-2.5 rounded-full hover:bg-zinc-200 dark:hover:bg-white/10"
+            className="group flex items-center gap-2 font-poppins text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-gray-300 hover:text-zinc-900 dark:hover:text-white transition-colors bg-zinc-100 dark:bg-white/5 border border-zinc-300 dark:border-white/10 px-4 py-2.5 rounded-full hover:bg-zinc-200 dark:hover:bg-white/10 cursor-pointer"
           >
             <span>View All Products</span>
             <ArrowRight size={14} className="transform group-hover:translate-x-1 transition-transform" />
@@ -66,18 +67,9 @@ const FeaturedProducts = () => {
 
         {/* Product Grid / Skeletons */}
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div 
-                key={i} 
-                className="h-80 bg-zinc-100 dark:bg-white/[0.02] border border-zinc-200 dark:border-white/10 animate-pulse rounded-2xl p-4 flex flex-col justify-between"
-              >
-                <div className="w-full h-48 bg-zinc-200 dark:bg-white/5 rounded-xl" />
-                <div className="space-y-2">
-                  <div className="w-3/4 h-4 bg-zinc-200 dark:bg-white/5 rounded" />
-                  <div className="w-1/2 h-4 bg-zinc-200 dark:bg-white/5 rounded" />
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <ProductCardSkeleton key={i} />
             ))}
           </div>
         ) : (
