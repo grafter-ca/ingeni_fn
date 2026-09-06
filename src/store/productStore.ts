@@ -171,7 +171,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
         vendorId: selectedVendorId
       } : params;
 
-      const data = await productService.getProducts(combinedParams);
+      let data;
+      try {
+        data = await productService.getProducts(combinedParams);
+      } catch (err: any) {
+        // Fallback to public endpoint if unauthorized/forbidden
+        if (err?.response?.status === 403 || err?.status === 403 || err?.message?.includes("403") || err?.message?.includes("Forbidden")) {
+          data = await productService.getProductsPublic(combinedParams);
+        } else {
+          throw err;
+        }
+      }
       const productList = Array.isArray(data) ? data : (data as any)?.products || [];
 
       const sanitizedData = productList.map((p: any) => ({
@@ -217,7 +227,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
   fetchVendorProducts: async (_vendorId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await productService.getProducts();
+      let data;
+      try {
+        data = await productService.getProducts();
+      } catch (err: any) {
+        // Fallback to public endpoint if unauthorized/forbidden
+        if (err?.response?.status === 403 || err?.status === 403 || err?.message?.includes("403") || err?.message?.includes("Forbidden")) {
+          data = await productService.getProductsPublic({});
+        } else {
+          throw err;
+        }
+      }
       const productList = Array.isArray(data) ? data : (data as any)?.products || [];
       
       const sanitizedData = productList.map((p: any) => ({
@@ -250,7 +270,16 @@ export const useProductStore = create<ProductState>((set, get) => ({
         vendorId: selectedVendorId || undefined
       };
 
-      const newData = await productService.getProducts(params);
+      let newData;
+      try {
+        newData = await productService.getProducts(params);
+      } catch (err: any) {
+        if (err?.response?.status === 403 || err?.status === 403 || err?.message?.includes("403") || err?.message?.includes("Forbidden")) {
+          newData = await productService.getProductsPublic(params);
+        } else {
+          throw err;
+        }
+      }
       const productList = Array.isArray(newData) ? newData : (newData as any)?.products || [];
 
       const sanitizedData = productList.map((p: any) => ({

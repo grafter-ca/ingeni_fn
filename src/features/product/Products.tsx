@@ -1,5 +1,5 @@
 // pages/Products.tsx
-import { useEffect, useCallback, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SlidersHorizontal, Loader2, X, PackageX } from "lucide-react";
@@ -39,25 +39,44 @@ const Products = () => {
   const [page, setPage] = useState(1);
   const PER_PAGE = 12;
 
+  // Track initial data fetch to prevent re-fetching loops
+  const initialFetchDone = useRef(false);
+
   // Fetch categories on mount
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Synchronize URL categoryIdParam with the store state
+  // Initial public products load on mount only
   useEffect(() => {
-    if (categoryIdParam && categories.length > 0) {
-      const matchedCat = categories.find(c => String(c.id) === String(categoryIdParam));
-      if (matchedCat) {
-        setCategory(matchedCat.id);
-      }
-    } else if (!categoryIdParam) {
-      setCategory(null);
-      setSearchParams({});
+    if (!initialFetchDone.current) {
+      initialFetchDone.current = true;
+      fetchPublicProducts({ limit: 40 });
     }
-    fetchPublicProducts({ limit: 40 });
+  }, [fetchPublicProducts]);
+
+  // Synchronize URL categoryIdParam with store state safely without infinite loops
+  useEffect(() => {
+    if (categoryIdParam) {
+      if (categories.length > 0) {
+        const matchedCat = categories.find(c => String(c.id) === String(categoryIdParam));
+        if (matchedCat) {
+          setCategory(matchedCat.id);
+        } else {
+          setCategory(categoryIdParam);
+        }
+      } else {
+        setCategory(categoryIdParam);
+      }
+    } else if (selectedCategory !== null) {
+      setCategory(null);
+    }
+  }, [categoryIdParam, categories, selectedCategory, setCategory]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
     setPage(1);
-  }, [categoryIdParam, categories, setCategory, fetchPublicProducts, setSearchParams]);
+  }, [selectedCategory, searchQuery, selectedLocation, selectedStore, priceRange]);
 
   // Combined filtering: Category/Price range + Location + Store + Search Query matching
   const sorted = useMemo(() => {
@@ -113,6 +132,15 @@ const Products = () => {
 
     return found ? found.name : selectedCategory;
   }, [selectedCategory, categories]);
+
+  const handleCategorySelect = (catId: string | null) => {
+    setCategory(catId);
+    if (catId) {
+      setSearchParams({ categoryId: catId });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] font-sans text-zinc-900 dark:text-gray-100 relative selection:bg-blue-500/30 transition-colors">
@@ -218,7 +246,7 @@ const Products = () => {
             </div>
           )}
 
-          {isLoading && page === 1 ? (
+          {isLoading && page === 1 && filteredProducts.length === 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
               {Array.from({ length: 10 }).map((_, i) => (
                 <ProductCardSkeleton key={i} />
@@ -284,6 +312,7 @@ const Products = () => {
                       setSelectedLocation(null);
                       setSelectedStore(null);
                       setPriceRange([0, 20000]);
+                      handleCategorySelect(null);
                     }}
                     className="px-8 py-3 bg-blue-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all cursor-pointer shadow-lg shadow-blue-600/20"
                   >
