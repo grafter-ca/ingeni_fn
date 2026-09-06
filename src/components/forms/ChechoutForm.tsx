@@ -1,4 +1,4 @@
-// src/components/forms/ChechoutForm.tsx
+// src/components/forms/CheckoutForm.tsx
 import { useState, useEffect } from "react";
 import {
   CreditCard,
@@ -12,7 +12,9 @@ type CheckoutFormProps = {
   onSubmit: (data: {
     shippingAddress: string;
     phoneNumber: string;
+    email: string;
     paymentMethod: PaymentMethod;
+    provider: string;
     paymentProofFile?: File;
   }) => Promise<void>;
 
@@ -27,7 +29,9 @@ type CheckoutFormProps = {
   defaultValues?: {
     shippingAddress: string;
     phoneNumber: string;
+    email: string;
     paymentMethod: PaymentMethod;
+    provider?: string;
   };
 };
 
@@ -41,7 +45,9 @@ const CheckoutForm = ({
   defaultValues = {
     shippingAddress: "",
     phoneNumber: "",
+    email: "",
     paymentMethod: "MOBILE_MONEY",
+    provider: "MTN_MOMO",
   },
 }: CheckoutFormProps) => {
   const [localLoading, setLocalLoading] = useState(false);
@@ -52,15 +58,28 @@ const CheckoutForm = ({
     selectedPayment || defaultValues.paymentMethod
   );
 
+  const [provider, setProvider] = useState<string>(
+    defaultValues.provider || (internalMethod === "MOBILE_MONEY" ? "MTN_MOMO" : "STRIPE")
+  );
+
   // Sync internal state if external `selectedPayment` prop updates
   useEffect(() => {
     if (selectedPayment) {
       setInternalMethod(selectedPayment);
+      if (selectedPayment === "MOBILE_MONEY") setProvider("MTN_MOMO");
+      else if (selectedPayment === "CARD") setProvider("STRIPE");
+      else if (selectedPayment === "CASH_ON_DELIVERY") setProvider("CASH");
+      else if (selectedPayment === "WORKFORCE_WALLET") setProvider("WORKFORCE_WALLET");
     }
   }, [selectedPayment]);
 
   const handleMethodChange = (newMethod: PaymentMethod) => {
     setInternalMethod(newMethod);
+    if (newMethod === "MOBILE_MONEY") setProvider("MTN_MOMO");
+    else if (newMethod === "CARD") setProvider("STRIPE");
+    else if (newMethod === "CASH_ON_DELIVERY") setProvider("CASH");
+    else if (newMethod === "WORKFORCE_WALLET") setProvider("WORKFORCE_WALLET");
+
     if (onPaymentMethodChange) {
       onPaymentMethodChange(newMethod);
     }
@@ -88,9 +107,21 @@ const CheckoutForm = ({
         formData.get("phoneNumber") || ""
       ).trim();
 
+      const email = String(
+        formData.get("email") || ""
+      ).trim();
+
       const paymentMethod = String(
         formData.get("paymentMethod") || internalMethod
       ) as PaymentMethod;
+
+      const selectedProvider = String(
+        formData.get("provider") || provider
+      );
+
+      if (!email || !email.includes("@")) {
+        throw new Error("Please enter a valid email address.");
+      }
 
       if (shippingAddress.length < 5) {
         throw new Error("Please enter a valid delivery address.");
@@ -107,11 +138,13 @@ const CheckoutForm = ({
         throw new Error("Please upload a payment proof screenshot for Mobile Money transfer.");
       }
 
-      // Pass raw file payload directly to the parent onSubmit handler
+      // Pass payload directly to the parent onSubmit handler
       await onSubmit({
         shippingAddress,
         phoneNumber,
+        email,
         paymentMethod,
+        provider: selectedProvider,
         paymentProofFile: paymentProofFile && paymentProofFile.size > 0 ? paymentProofFile : undefined,
       });
     } catch (err: any) {
@@ -135,7 +168,7 @@ const CheckoutForm = ({
 
         <div className="flex items-center gap-2 text-green-600 dark:text-green-500 text-sm font-medium">
           <Smartphone size={18} />
-          MoMo Supported
+          Multi-Vendor Enabled
         </div>
       </div>
 
@@ -147,15 +180,16 @@ const CheckoutForm = ({
 
       <div>
         <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-          Shipping Address
+          Email Address
         </label>
 
         <input
-          name="shippingAddress"
+          name="email"
+          type="email"
           required
           disabled={loading}
-          defaultValue={defaultValues.shippingAddress}
-          placeholder="KG 11 Ave, Kigali"
+          defaultValue={defaultValues.email}
+          placeholder="john@example.com"
           className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
         />
       </div>
@@ -171,27 +205,69 @@ const CheckoutForm = ({
           required
           disabled={loading}
           defaultValue={defaultValues.phoneNumber}
-          placeholder="07XXXXXXXX"
+          placeholder="+250 720 000 000"
           className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
         />
       </div>
 
       <div>
         <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-          Payment Method
+          Shipping Address / Location
         </label>
 
-        <select
-          name="paymentMethod"
+        <input
+          name="shippingAddress"
           required
-          value={internalMethod}
-          onChange={(e) => handleMethodChange(e.target.value as PaymentMethod)}
-          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
-        >
-          <option value="MOBILE_MONEY">Mobile Money (MoMo)</option>
-          <option value="CREDIT_CARD">Credit Card</option>
-          <option value="CASH_ON_DELIVERY">Cash On Delivery</option>
-        </select>
+          disabled={loading}
+          defaultValue={defaultValues.shippingAddress}
+          placeholder="Kigali, Nyarugenge, KN 4 Ave"
+          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+            Payment Method
+          </label>
+
+          <select
+            name="paymentMethod"
+            required
+            value={internalMethod}
+            onChange={(e) => handleMethodChange(e.target.value as PaymentMethod)}
+            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
+          >
+            <option value="MOBILE_MONEY">Mobile Money (MoMo)</option>
+            <option value="CARD">Credit Card</option>
+            <option value="CASH_ON_DELIVERY">Cash On Delivery</option>
+            <option value="WORKFORCE_WALLET">Workforce Wallet</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+            Provider
+          </label>
+
+          <select
+            name="provider"
+            required
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
+          >
+            {internalMethod === "MOBILE_MONEY" && (
+              <>
+                <option value="MTN_MOMO">MTN Mobile Money</option>
+                <option value="AIRTEL_MONEY">Airtel Money</option>
+              </>
+            )}
+            {internalMethod === "CARD" && <option value="STRIPE">Stripe / Card Gateway</option>}
+            {internalMethod === "CASH_ON_DELIVERY" && <option value="CASH">Cash on Delivery</option>}
+            {internalMethod === "WORKFORCE_WALLET" && <option value="WORKFORCE_WALLET">Wallet Balance</option>}
+          </select>
+        </div>
       </div>
 
       {/* Conditional Mobile Money Instructions and Screenshot Upload Section */}

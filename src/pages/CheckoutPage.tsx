@@ -11,6 +11,7 @@ import {
   CreditCard,
   Smartphone,
   Banknote,
+  Wallet,
 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import type { PaymentMethod } from "../types/api";
@@ -56,29 +57,34 @@ const CheckoutPage = () => {
   }
 
   const tax = total * 0.18;
-  const shipping = 2000;
+  const shipping = total > 10000 ? 0 : 500; // Free shipping for orders above 10,000 RWF
   const grandTotal = total + tax + shipping;
 
   const handlePlaceOrder = async ({
     shippingAddress,
     phoneNumber,
+    email,
     paymentMethod,
-    paymentProofUrl,
+    provider,
+    paymentProofFile,
   }: {
     shippingAddress: string;
     phoneNumber: string;
+    email: string;
     paymentMethod: PaymentMethod;
-    paymentProofUrl?: string;
+    provider: string;
+    paymentProofFile?: File;
   }) => {
+    let paymentProofUrl = undefined;
     try {
       const validatedItems = items.map((item) => {
-        const cleanId = item.productId.replace("local-", "").replace("fake-", "");
-        if (!item.productId) {
+        const cleanId = item.productId ? item.productId.replace("local-", "").replace("fake-", "") : item.id;
+        if (!cleanId) {
           throw new Error(`${item.name} is missing productId`);
         }
 
         if (!item.vendorId) {
-          throw new Error(`${item.name} is missing vendorId`);
+          throw new Error(`${item.name} is missing vendorId assignment for multi-vendor distribution`);
         }
 
         return {
@@ -88,33 +94,37 @@ const CheckoutPage = () => {
         };
       });
 
+      if (paymentProofFile) {
+        paymentProofUrl = URL.createObjectURL(paymentProofFile);
+      }
+
       const payload = {
         items: validatedItems,
         shippingAddress,
         phoneNumber,
+        email,
         paymentMethod,
-        paymentProofUrl, // Forward screenshot upload proof
+        provider,
+        paymentProofUrl,
         totalAmount: grandTotal,
         taxAmount: tax,
         shippingFees: shipping,
-        user: {
-          id: userId,
-          name: user?.name || guestData?.name || "Guest User",
-          email: user?.email || guestData?.email || "guest@ingenistore.com",
-          phoneNumber: user?.phone || guestData?.phone || "N/A",
-        },
-        userId,
+        userId: userId || undefined,
       };
 
       const order = await createOrder(payload);
 
-      console.log("Order created successfully:", order, "with payload:", payload);
+      console.log("Multi-vendor order created successfully:", order, "with payload:", payload);
 
       clearCart();
-      navigate(`/order-success/${order.orderNumber}`);
+      navigate(`/order-success/${order.orderNumber || order.id}`);
     } catch (err) {
-      console.error("Checkout failed:", err);
+      console.error("Checkout submission failed:", err);
       throw err;
+    } finally {
+      if (paymentProofUrl) {
+        URL.revokeObjectURL(paymentProofUrl);
+      }
     }
   };
 
@@ -179,9 +189,11 @@ const CheckoutPage = () => {
               selectedPayment={selectedPayment}
               onPaymentMethodChange={setSelectedPayment}
               defaultValues={{
-                shippingAddress: "Kigali",
+                shippingAddress: "Kigali, Rwanda",
                 phoneNumber: guestData?.phone || user?.phone || "",
+                email: guestData?.email || user?.email || "",
                 paymentMethod: selectedPayment,
+                provider: selectedPayment === "MOBILE_MONEY" ? "MTN_MOMO" : "STRIPE",
               }}
             />
 
@@ -190,7 +202,7 @@ const CheckoutPage = () => {
                 Select Payment Method
               </h3>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   {
                     id: "MOBILE_MONEY",
@@ -206,6 +218,11 @@ const CheckoutPage = () => {
                     id: "CASH_ON_DELIVERY",
                     label: "Cash",
                     icon: Banknote,
+                  },
+                  {
+                    id: "WORKFORCE_WALLET",
+                    label: "Wallet",
+                    icon: Wallet,
                   },
                 ].map((method) => (
                   <button

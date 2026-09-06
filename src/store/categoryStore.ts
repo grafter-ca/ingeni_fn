@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { categoryApi, type Category } from "../libs/categoryApi";
-import { io, Socket } from "socket.io-client";
+import { socket } from "../libs/socket"; // Adjust this path if your libs folder has a different relative depth (e.g., "@/libs/socket")
+import type { Socket } from "socket.io-client";
 
 interface CategoryState {
   categories: Category[];
@@ -26,26 +27,24 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
   loading: false,
   isEditing: null,
   formData: { name: "", image: "" },
-  socket: null,
+  socket: socket, // Reference the central socket instance from libs
 
   initSocket: () => {
-    if (get().socket) return;
+    // Prevent registering duplicate listeners if already initialized
+    if (socket.hasListeners && socket.hasListeners("categoryUpdated")) return;
 
-    const socketInstance = io("https://ingeri-api.onrender.com/ws", {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
+    if (!socket.hasListeners && socket.connected) return;
+
+    socket.on("connect", () => {
+      console.log("⚡ Category Store connected to real-time socket server:", socket.id);
     });
 
-    socketInstance.on("connect", () => {
-      console.log("⚡ Category Store connected to real-time socket server:", socketInstance.id);
-    });
-
-    socketInstance.on("disconnect", (reason) => {
+    socket.on("disconnect", (reason) => {
       console.log("❌ Category Store disconnected from Socket.io server:", reason);
     });
 
-    // Listen for category updates or creations if emitted by backend
-    socketInstance.on("categoryUpdated", (updatedCategory: Category) => {
+    // Listen for category updates, creations, or deletions
+    socket.on("categoryUpdated", (updatedCategory: Category) => {
       set((state) => ({
         categories: state.categories.map((cat) =>
           String(cat.id) === String(updatedCategory.id) ? updatedCategory : cat
@@ -53,27 +52,26 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       }));
     });
 
-    socketInstance.on("categoryCreated", (newCategory: Category) => {
+    socket.on("categoryCreated", (newCategory: Category) => {
       set((state) => ({
         categories: [newCategory, ...state.categories],
       }));
     });
 
-    socketInstance.on("categoryDeleted", ({ id }: { id: string }) => {
+    socket.on("categoryDeleted", ({ id }: { id: string }) => {
       set((state) => ({
         categories: state.categories.filter((cat) => String(cat.id) !== String(id)),
       }));
     });
-
-    set({ socket: socketInstance });
   },
 
   disconnectSocket: () => {
-    const { socket } = get();
-    if (socket) {
-      socket.disconnect();
-      set({ socket: null });
-    }
+    // Clean up store-specific listeners from the shared socket instance to prevent memory leaks
+    socket.off("connect");
+    socket.off("disconnect");
+    socket.off("categoryUpdated");
+    socket.off("categoryCreated");
+    socket.off("categoryDeleted");
   },
 
   setFormData: (data) => set({ formData: data }),

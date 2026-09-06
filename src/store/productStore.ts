@@ -1,6 +1,7 @@
+// src/store/productStore.ts
 import { create } from "zustand";
 import { productService } from "../services/productService";
-import { io, Socket } from "socket.io-client";
+import { socket } from "../libs/socket"; // Fixed path to match the central shared socket instance
 import type { ApiCategory, ApiProduct, ProductFormData } from "../types/api";
 
 export interface ApiVendor {
@@ -26,7 +27,6 @@ interface ProductState {
   vendors: ApiVendor[];
   currentProductReviews: ApiReview[];
   wishlistStatusMap: Record<string, boolean>; // productId -> boolean
-  socket: Socket | null;
 
   // UI/Context State
   isLoading: boolean;
@@ -83,7 +83,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
   vendors: [],
   currentProductReviews: [],
   wishlistStatusMap: {},
-  socket: null,
   isLoading: false,
   isFetchingMore: false,
   error: null,
@@ -109,22 +108,18 @@ export const useProductStore = create<ProductState>((set, get) => ({
   },
 
   initSocket: () => {
-    if (get().socket) return;
+    if (socket.hasListeners && socket.hasListeners("productUpdated")) return;
+    if (!socket.hasListeners && socket.connected) return;
 
-    const socketInstance = io("https://ingeri-api.onrender.com/ws", {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
+    socket.on("connect", () => {
+      console.log("⚡ Connected to real-time socket server:", socket.id);
     });
 
-    socketInstance.on("connect", () => {
-      console.log("⚡ Connected to real-time socket server:", socketInstance.id);
-    });
-
-    socketInstance.on("disconnect", (reason) => {
+    socket.on("disconnect", (reason: string) => {
       console.log("❌ Disconnected from Socket.io server:", reason);
     });
 
-    socketInstance.on("productUpdated", (updatedProduct) => {
+    socket.on("productUpdated", (updatedProduct: any) => {
       const sanitized = {
         ...updatedProduct,
         images: get()._sanitizeImages(updatedProduct.images),
@@ -139,7 +134,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       get().applyFilters();
     });
 
-    socketInstance.on("productCreated", (newProduct) => {
+    socket.on("productCreated", (newProduct: any) => {
       const sanitized = {
         ...newProduct,
         images: get()._sanitizeImages(newProduct.images),
@@ -151,22 +146,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
       get().applyFilters();
     });
 
-    socketInstance.on("productDeleted", ({ id }) => {
+    socket.on("productDeleted", ({ id }: { id: string | number }) => {
       set((state) => ({
         products: state.products.filter((p) => String(p.id) !== String(id)),
       }));
       get().applyFilters();
     });
-
-    set({ socket: socketInstance });
   },
 
   disconnectSocket: () => {
-    const { socket } = get();
-    if (socket) {
-      socket.disconnect();
-      set({ socket: null });
-    }
+    socket.off("connect");
+    socket.off("disconnect");
+    socket.off("productUpdated");
+    socket.off("productCreated");
+    socket.off("productDeleted");
   },
 
   fetchProducts: async (params = {}) => {
