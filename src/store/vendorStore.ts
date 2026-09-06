@@ -2,7 +2,8 @@
 import { create } from "zustand";
 import { vendorService } from "../services/vendorService";
 import type { ApiVendor, VendorMetrics, ApiOrder } from "../types";
-import { socket } from "../libs/socket.client";
+import { socket } from "../libs/socket";
+import type { Socket } from "socket.io-client";
 
 export interface Order {
   id: string;
@@ -56,7 +57,9 @@ interface VendorState {
 
   isEditing: ApiVendor | null;
   formData: Omit<ApiVendor, "id" | "createdAt" | "_count">;
+  socket: Socket | null;
 
+  // Actions
   fetchVendors: (params?: any) => Promise<void>;
   fetchVendorDetails: (id: string) => Promise<void>;
   fetchPendingRequests: () => Promise<void>;
@@ -72,7 +75,9 @@ interface VendorState {
 
   updateFormData: (data: Partial<VendorState["formData"]>) => void;
   setEditingVendor: (vendor: ApiVendor | null) => void;
+  
   initSocketListeners: () => void;
+  disconnectSocket: () => void;
 
   addVendor: () => Promise<void>;
   updateVendor: (id: string) => Promise<void>;
@@ -113,6 +118,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     logoUrl: "",
     isActive: true,
   },
+  socket: socket,
 
   fetchVendors: async (params) => {
     set({ isLoading: true, error: null });
@@ -275,51 +281,62 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   },
 
   initSocketListeners: () => {
-    if (!socket.hasListeners('vendor:request-created')) {
-      socket.on('vendor:request-created', (newRequest: OnboardingRequest) => {
-        set((state) => ({
-          pendingRequests: [newRequest, ...state.pendingRequests.filter((r) => r.id !== newRequest.id)]
-        }));
-      });
-    }
+    if (socket.hasListeners && socket.hasListeners('vendor:request-created')) return;
+    if (!socket.hasListeners && socket.connected) return;
 
-    // Real-time synchronization listeners for vendor state updates
-    if (!socket.hasListeners('vendorUpdated')) {
-      socket.on('vendorUpdated', (updatedVendor: ApiVendor) => {
-        set((state) => {
-          const vendors = state.vendors.map((v) =>
-            String(v.id) === String(updatedVendor.id) ? updatedVendor : v
-          );
-          return {
-            vendors,
-            selectedVendor: state.selectedVendor && String(state.selectedVendor.id) === String(updatedVendor.id) ? updatedVendor : state.selectedVendor,
-          };
-        });
-        get().applyFilters();
-      });
-    }
+    socket.on('connect', () => {
+      console.log("⚡ Vendor Store connected to real-time socket server:", socket.id);
+    });
 
-    if (!socket.hasListeners('vendorDeleted')) {
-      socket.on('vendorDeleted', ({ id }: { id: string }) => {
-        set((state) => {
-          const vendors = state.vendors.filter((v) => String(v.id) !== String(id));
-          return {
-            vendors,
-            selectedVendor: state.selectedVendor && String(state.selectedVendor.id) === String(id) ? null : state.selectedVendor,
-          };
-        });
-        get().applyFilters();
-      });
-    }
+    socket.on('disconnect', (reason) => {
+      console.log("❌ Vendor Store disconnected from Socket.io server:", reason);
+    });
 
-    if (!socket.hasListeners('vendorCreated')) {
-      socket.on('vendorCreated', (newVendor: ApiVendor) => {
-        set((state) => ({
-          vendors: [newVendor, ...state.vendors],
-        }));
-        get().applyFilters();
+    socket.on('vendor:request-created', (newRequest: OnboardingRequest) => {
+      set((state) => ({
+        pendingRequests: [newRequest, ...state.pendingRequests.filter((r) => r.id !== newRequest.id)]
+      }));
+    });
+
+    socket.on('vendorUpdated', (updatedVendor: ApiVendor) => {
+      set((state) => {
+        const vendors = state.vendors.map((v) =>
+          String(v.id) === String(updatedVendor.id) ? updatedVendor : v
+        );
+        return {
+          vendors,
+          selectedVendor: state.selectedVendor && String(state.selectedVendor.id) === String(updatedVendor.id) ? updatedVendor : state.selectedVendor,
+        };
       });
-    }
+      get().applyFilters();
+    });
+
+    socket.on('vendorDeleted', ({ id }: { id: string }) => {
+      set((state) => {
+        const vendors = state.vendors.filter((v) => String(v.id) !== String(id));
+        return {
+          vendors,
+          selectedVendor: state.selectedVendor && String(state.selectedVendor.id) === String(id) ? null : state.selectedVendor,
+        };
+      });
+      get().applyFilters();
+    });
+
+    socket.on('vendorCreated', (newVendor: ApiVendor) => {
+      set((state) => ({
+        vendors: [newVendor, ...state.vendors],
+      }));
+      get().applyFilters();
+    });
+  },
+
+  disconnectSocket: () => {
+    socket.off('connect');
+    socket.off('disconnect');
+    socket.off('vendor:request-created');
+    socket.off('vendorUpdated');
+    socket.off('vendorDeleted');
+    socket.off('vendorCreated');
   },
 
   addVendor: async () => {

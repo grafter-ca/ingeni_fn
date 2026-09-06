@@ -1,4 +1,3 @@
-// --- FRONTEND /libs/order-client.ts ---
 import { localApi } from "../libs/api";
 import type { Order, CreateOrderDto } from "../types/api";
 
@@ -29,6 +28,17 @@ export const OrderClient = {
     } catch (error) {
       console.error("Fetch Order Details Error:", error);
       throw new Error("Could not fetch order details.");
+    }
+  },
+
+  // --- SUBMIT PAYMENT PROOF (Added) ---
+  async submitPaymentProof(orderId: string, proofUrl: string, transactionReference?: string): Promise<Order> {
+    try {
+      const payload = { proofUrl, transactionReference };
+      return await localApi.post<Order>(`/orders/${orderId}/payment-proof`, payload);
+    } catch (error: any) {
+      console.error("Payment Proof Submission Error:", error?.response?.data || error.message);
+      throw new Error(error?.response?.data?.message || "Failed to submit payment proof.");
     }
   },
 
@@ -63,7 +73,7 @@ export const OrderClient = {
     }
   },
 
-  // 🔥 --- UPDATE PAYMENT STATUS (Added) ---
+  // --- UPDATE PAYMENT STATUS ---
   async updatePaymentStatus(orderId: string, paymentStatus: string): Promise<Order> {
     try {
       const payload = { paymentStatus: paymentStatus.toUpperCase() };

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { io, Socket } from "socket.io-client";
+import { socket } from "../libs/socket";
+import { Socket } from "socket.io-client";
 
 export type CartItem = {
   id: string; // The cart item unique ID
@@ -36,26 +37,29 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
-      socket: null,
+      socket: socket, // Reference the central socket instance from libs
 
       initSocket: () => {
-        if (get().socket) return;
+        // Prevent registering duplicate listeners if already initialized
+        if (socket.hasListeners && socket.hasListeners("productUpdated")) return;
 
-        const socketInstance = io("https://ingeri-api.onrender.com/ws", {
-          withCredentials: true,
-          transports: ["websocket", "polling"],
+        if (!socket.hasListeners) {
+          // Fallback check if socket is already connected or initialized
+          if (socket.connected) return;
+        }
+
+        socket.on("connect", () => {
+          console.log("⚡ Cart Store connected to real-time socket server:", socket.id);
         });
 
-        socketInstance.on("connect", () => {
-          console.log("⚡ Cart Store connected to real-time socket server:", socketInstance.id);
-        });
-
-        socketInstance.on("disconnect", (reason) => {
+        socket.on("disconnect", (reason: string) => {
           console.log("❌ Cart Store disconnected from Socket.io server:", reason);
         });
 
         // Listen for product updates that might affect cart items (e.g. price change or deletion)
-        socketInstance.on("productUpdated", (updatedProduct) => {
+        socket.on(
+          "productUpdated",
+          (updatedProduct: { id: string; title?: string; price?: number }) => {
           set((state) => ({
             items: state.items.map((item) =>
               String(item.productId) === String(updatedProduct.id)
@@ -67,23 +71,22 @@ export const useCartStore = create<CartStore>()(
                 : item
             ),
           }));
-        });
+            }
+          );
 
-        socketInstance.on("productDeleted", ({ id }) => {
+        socket.on("productDeleted", ({ id }: { id: string }) => {
           set((state) => ({
             items: state.items.filter((item) => String(item.productId) !== String(id)),
           }));
         });
-
-        set({ socket: socketInstance });
       },
 
       disconnectSocket: () => {
-        const { socket } = get();
-        if (socket) {
-          socket.disconnect();
-          set({ socket: null });
-        }
+        // Clean up listeners associated with the cart store to prevent memory leaks
+        socket.off("connect");
+        socket.off("disconnect");
+        socket.off("productUpdated");
+        socket.off("productDeleted");
       },
 
       addToCart: (product) =>
