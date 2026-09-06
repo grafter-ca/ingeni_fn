@@ -6,24 +6,24 @@ import Button from "../ui/Button";
 
 type Props = { isOpen: boolean; onClose: () => void };
 
+/// let include our isopen and onclose in here
+
+
 const AuthPromptModal = ({ isOpen, onClose }: Props) => {
   const navigate = useNavigate();
 
   const handleLogin = useCallback(() => {
-    onClose();
     navigate("/login");
-  }, [navigate, onClose]);
+  }, [navigate]);
 
   const handleRegister = useCallback(() => {
-    onClose();
     navigate("/register");
-  }, [navigate, onClose]);
+  }, [navigate]);
 
-  // Navigate back to previous page or safety route when close is clicked
-  const handleCloseNavigation = useCallback(() => {
+  // Cleanly dismiss the modal without forcing an unexpected history pop (-1)
+  const handleCloseModal = useCallback(() => {
     onClose();
-    navigate(-1);
-  }, [onClose, navigate]);
+  }, [onClose]);
 
   return (
     <AnimatePresence>
@@ -31,11 +31,11 @@ const AuthPromptModal = ({ isOpen, onClose }: Props) => {
         <>
           {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50"
+            className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 cursor-pointer"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={handleCloseNavigation}
+            onClick={handleCloseModal}
           />
 
           {/* Modal */}
@@ -48,8 +48,8 @@ const AuthPromptModal = ({ isOpen, onClose }: Props) => {
           >
             <div className="bg-white dark:bg-[#121212] border border-zinc-200 dark:border-white/10 w-full max-w-md p-8 flex flex-col gap-6 relative rounded-2xl shadow-2xl pointer-events-auto">
               <button
-                onClick={handleCloseNavigation}
-                className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800 rounded-full p-1.5"
+                onClick={handleCloseModal}
+                className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors border border-zinc-200 dark:border-zinc-800 rounded-full p-1.5 cursor-pointer"
               >
                 <X size={18} />
               </button>
