@@ -24,6 +24,9 @@ interface AuthActions {
   admin: {
     listUsers: (query?: any) => Promise<any>;
     setRole: (userId: string, role: UserRole) => Promise<void>;
+    banUser: (data: { userId: string; reason?: string }) => Promise<any>;
+    unbanUser: (data: { userId: string }) => Promise<any>;
+    removeUser: (data: { userId: string }) => Promise<any>;
   };
 }
 
@@ -117,6 +120,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     },
     setRole: async (userId: string, role: UserRole) => {
       await authService.adminSetRole(userId, role);
+    },
+    banUser: async (data: { userId: string; reason?: string }) => {
+      return await authService.adminBanUser(data);
+    },
+    unbanUser: async (data: { userId: string }) => {
+      return await authService.adminUnbanUser(data);
+    },
+    removeUser: async (data: { userId: string }) => {
+      return await authService.adminRemoveUser(data);
     }
   }), []);
 
