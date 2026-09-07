@@ -29,7 +29,7 @@ const AdminSideBar = ({ opened, handleToggleMenu }: NavProps) => {
     <aside
       className={`
         /* Base / Mobile Styles */
-        fixed inset-y-0 left-0 z-50 w-64 bg-[#050505] border-r border-white/5 p-6 flex flex-col
+        fixed inset-y-0 left-0 z-50 w-64 bg-[#050505] border-r border-white/5 p-4 flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${opened ? "translate-x-0" : "-translate-x-full"}
 
@@ -38,7 +38,7 @@ const AdminSideBar = ({ opened, handleToggleMenu }: NavProps) => {
       `}
     >
       {/* Sidebar Header */}
-      <div className="mb-10 flex justify-between items-center px-2">
+      <div className="mb-8 flex justify-between items-center px-2">
         <NavLink to="/admin" className="group">
           <h1 className="text-xl font-black tracking-tighter bg-linear-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent uppercase font-mono">
             Admin HQ
@@ -61,7 +61,7 @@ const AdminSideBar = ({ opened, handleToggleMenu }: NavProps) => {
           end
           onClick={() => { if (window.innerWidth < 1024) handleToggleMenu(); }}
           className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all group ${
+            `flex items-center gap-3 px-4 py-3 rounded-2xl transition-all group ${
               isActive
                 ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
                 : "text-gray-500 hover:bg-white/5 hover:text-white"

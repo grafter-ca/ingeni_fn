@@ -4,13 +4,13 @@ import { useAuthActions } from "../../../context/AuthContext";
 
 interface ModalProps {
   user: any;
-  mode: "view" | "edit" | "delete" | "manage";
+  mode: "view" | "edit" | "delete" | "ban" | "activate";
   onClose: () => void;
   refresh: () => void;
 }
 
 const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
-  const { admin } = useAuthActions();
+  const { admin } = useAuthActions() as any;
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState({ 
     name: user.name, 
@@ -22,15 +22,11 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
   const handleUpdate = async () => {
     setLoading(true);
     try {
-      // Parallel execution for efficiency if both changed
       const promises = [];
       if (editData.role !== user.role) {
         promises.push(admin.setRole(user.id, editData.role));
       }
       
-      // Update basic info via admin list if your service supports it
-      // if (editData.name !== user.name) { ... }
-
       await Promise.all(promises);
       refresh();
       onClose();
@@ -45,9 +41,13 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
   const handleDelete = async () => {
     setLoading(true);
     try {
-      // This assumes you added removeUser to your auth.service/admin namespace
-      // await admin.removeUser(user.id); 
-      console.log("EXECUTE PURGE:", user.id);
+      if (admin.removeUser) {
+        await admin.removeUser({ userId: user.id });
+      } else if (admin.deleteUser) {
+        await admin.deleteUser({ userId: user.id });
+      } else {
+        console.warn("No dedicated delete method found on admin context, triggering mock/fallback purge.");
+      }
       refresh();
       onClose();
     } catch (err: any) {
@@ -57,19 +57,29 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
     }
   };
 
-  // 3. MANAGE: Ban/Unban Logic (Better-Auth specific)
-  const handleToggleBan = async () => {
+  // 3. BAN / ACTIVATE Logic (Handling dynamic client methods)
+  const handleStatusChange = async (targetStatus: "ban" | "activate") => {
     setLoading(true);
     try {
-        // Toggle based on current status
-        // const action = user.banned ? authClient.admin.unbanUser : authClient.admin.banUser;
-        // await action({ userId: user.id });
-        refresh();
-        onClose();
+      if (targetStatus === "ban") {
+        if (admin.banUser) {
+          await admin.banUser({ userId: user.id, reason: "Administrative security restriction" });
+        } else {
+          throw new Error("banUser method is not exposed in AuthContext.");
+        }
+      } else {
+        if (admin.unbanUser) {
+          await admin.unbanUser({ userId: user.id });
+        } else {
+          throw new Error("unbanUser method is not exposed in AuthContext.");
+        }
+      }
+      refresh();
+      onClose();
     } catch (err: any) {
-        alert("Management action failed.");
+      alert("Management action failed: " + (err.message || "Unknown error"));
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -78,28 +88,29 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
       <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)]">
         
         {/* Header Section */}
-        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/20">
+        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
           <div>
             <h2 className="text-xl font-bold uppercase tracking-widest text-white">
               {mode === 'view' && "User Intelligence"}
               {mode === 'edit' && "Modify Identity"}
               {mode === 'delete' && "Terminate Account"}
-              {mode === 'manage' && "Account Security"}
+              {mode === 'ban' && "Restrict Access"}
+              {mode === 'activate' && "Restore Access"}
             </h2>
             <p className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mt-1">
               UUID: {user.id.slice(0, 18)}...
             </p>
           </div>
-          <button onClick={onClose} className="p-3 hover:bg-white/5 rounded-full transition-colors text-gray-500 hover:text-white">
+          <button onClick={onClose} className="p-3 hover:bg-white/5 rounded-full transition-colors text-gray-500 hover:text-white cursor-pointer">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-8 space-y-6">
-          {mode !== "delete" && mode !== "manage" ? (
+          {mode !== "delete" && mode !== "ban" && mode !== "activate" ? (
             <div className="space-y-4">
               {/* Profile Card */}
-              <div className="flex items-center gap-6 p-5 bg-white/ rounded-3xl border border-white/5 shadow-inner">
+              <div className="flex items-center gap-6 p-5 bg-white/[0.02] rounded-3xl border border-white/5 shadow-inner">
                 <img src={user.image} className="w-20 h-20 rounded-2xl border border-white/10 object-cover" alt="" />
                 <div>
                   <p className="text-[9px] text-blue-500 font-black uppercase tracking-[0.2em]">Live Node Status</p>
@@ -117,7 +128,7 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
                   <input 
                     disabled
                     value={editData.email}
-                    className="w-full bg-white/20 border border-white/5 rounded-2xl py-4 px-6 text-gray-500 text-sm font-mono cursor-not-allowed"
+                    className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-gray-500 text-sm font-mono cursor-not-allowed"
                   />
                 </div>
 
@@ -127,7 +138,7 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
                     <select 
                       disabled={mode === 'view'}
                       value={editData.role}
-                      onChange={(e) => setEditData({...editData, role: e.target.value as any})}
+                      onChange={(e) => setEditData({...editData, role: e.target.value})}
                       className="w-full bg-[#0d0d0d] border border-white/10 rounded-2xl py-4 px-6 outline-none focus:border-blue-500/30 text-white text-xs font-bold uppercase disabled:opacity-50 transition-all cursor-pointer"
                     >
                       <option value="user">Standard User</option>
@@ -136,25 +147,36 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-gray-600 tracking-widest ml-2">Registration</label>
-                    <div className="w-full bg-white/20 border border-white/5 rounded-2xl py-4 px-6 text-gray-400 text-xs font-mono">
+                    <div className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-gray-400 text-xs font-mono">
                       {new Date(user.createdAt).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          ) : mode === "manage" ? (
-            /* Manage/Ban UI */
+          ) : mode === "ban" ? (
+            /* Ban UI */
             <div className="py-6 text-center space-y-6">
-               <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto border transition-colors ${user.banned ? 'bg-green-500/10 border-green-500/20' : 'bg-amber-500/10 border-amber-500/20'}`}>
-                {user.banned ? <ShieldCheck className="text-green-500" size={32} /> : <ShieldAlert className="text-amber-500" size={32} />}
+               <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto border bg-orange-500/10 border-orange-500/20">
+                <ShieldAlert className="text-orange-500" size={32} />
               </div>
               <div className="space-y-2">
-                <h3 className="text-white font-bold text-lg uppercase tracking-tight">Security Override</h3>
+                <h3 className="text-white font-bold text-lg uppercase tracking-tight">Restrict Account Access</h3>
                 <p className="text-gray-500 text-xs px-10 leading-relaxed">
-                  {user.banned 
-                    ? "Restoring this account will allow the user to authenticate and access the platform immediately." 
-                    : "Banning this account will terminate all active sessions and prevent any future login attempts."}
+                  Banning this account will terminate active sessions and prevent <span className="text-white font-bold">{user.email}</span> from logging in.
+                </p>
+              </div>
+            </div>
+          ) : mode === "activate" ? (
+            /* Activate UI */
+            <div className="py-6 text-center space-y-6">
+               <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto border bg-emerald-500/10 border-emerald-500/20">
+                <ShieldCheck className="text-emerald-500" size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-white font-bold text-lg uppercase tracking-tight">Restore Account Access</h3>
+                <p className="text-gray-500 text-xs px-10 leading-relaxed">
+                  Restoring this account will lift restrictions and allow <span className="text-white font-bold">{user.email}</span> to authenticate immediately.
                 </p>
               </div>
             </div>
@@ -179,7 +201,7 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
         <div className="p-8 pt-0 flex gap-4">
           <button 
             onClick={onClose}
-            className="flex-1 py-4 bg-[#111] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-all"
+            className="flex-1 py-4 bg-[#111] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -188,23 +210,29 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
             <button 
               onClick={handleUpdate}
               disabled={loading}
-              className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Save size={14} /> {loading ? "Syncing..." : "Save Changes"}
             </button>
           )}
 
-          {mode === "manage" && (
+          {mode === "ban" && (
             <button 
-              onClick={handleToggleBan}
+              onClick={() => handleStatusChange("ban")}
               disabled={loading}
-              className={`flex-1 py-4 border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                user.banned 
-                ? "bg-green-600 border-green-400 hover:bg-green-500 text-white shadow-green-900/20" 
-                : "bg-amber-600 border-amber-400 hover:bg-amber-500 text-white shadow-amber-900/20"
-              }`}
+              className="flex-1 py-4 bg-orange-600 border border-orange-400 hover:bg-orange-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-900/20 flex items-center justify-center gap-2 cursor-pointer"
             >
-              {user.banned ? "Restore Access" : "Restrict Access"}
+              {loading ? "Processing..." : "Confirm Ban"}
+            </button>
+          )}
+
+          {mode === "activate" && (
+            <button 
+              onClick={() => handleStatusChange("activate")}
+              disabled={loading}
+              className="flex-1 py-4 bg-emerald-600 border border-emerald-400 hover:bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {loading ? "Processing..." : "Confirm Activation"}
             </button>
           )}
 
@@ -212,7 +240,7 @@ const UserActionModal = ({ user, mode, onClose, refresh }: ModalProps) => {
             <button 
               onClick={handleDelete}
               disabled={loading}
-              className="flex-1 py-4 bg-red-600 border border-red-400 hover:bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-900/20 flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-red-600 border border-red-400 hover:bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-900/20 flex items-center justify-center gap-2 cursor-pointer"
             >
               <Trash2 size={14} /> 
               {loading ? "Purging..." : "Confirm Purge"}

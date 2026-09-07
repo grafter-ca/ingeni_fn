@@ -27,9 +27,14 @@ const UserManagementPage = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const data = await admin.listUsers(query);
-      setUsers(data.users || []);
-      setTotal(data.total || 0);
+      const res = await admin.listUsers(query);
+      console.log("Raw admin.listUsers response:", res);
+      
+      // Extract data safely accounting for Better-Auth's response wrapper structure ({ data: { users, total }, error })
+      const responseData = res?.data || res;
+      
+      setUsers(responseData.users || []);
+      setTotal(responseData.total || 0);
     } catch (err) {
       console.error("Critical Registry Sync Failure:", err);
     } finally {

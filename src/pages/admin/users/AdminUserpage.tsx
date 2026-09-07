@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { ShieldCheck, LayoutDashboard, Users, Settings, Activity } from "lucide-react";
 import UserManagementPage from "../../../features/admin/user/UserManagement";
 import AdminOverview from "./AdminOverview";
@@ -22,8 +22,12 @@ const AdminUserPage = () => {
       try {
         // limit: 1 is a performance trick to get the 'total' without downloading all users
         const res = await admin.listUsers({ limit: 1 }); 
+        
+        // Extract total safely accounting for Better-Auth's response wrapper structure ({ data: { total }, error })
+        const responseData = res?.data || res;
+
         setRegistryStats({
-          total: res.total || 0,
+          total: responseData.total || 0,
           loading: false
         });
       } catch (err) {

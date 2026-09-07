@@ -1,3 +1,4 @@
+// src/services/auth.service.ts
 import { authClient } from "../libs/auth-client";
 import type { LoginPayload, RegisterPayloadProps } from "../types/api";
 
@@ -84,6 +85,15 @@ export const authService = {
 
   adminSetRole: async (userId: string, role: string) =>
     await authClient.admin.setRole({ userId, role: role as "user" | "admin" }),
+
+  adminBanUser: async (data: { userId: string; reason?: string }) =>
+    await authClient.admin.banUser(data),
+
+  adminUnbanUser: async (data: { userId: string }) =>
+    await authClient.admin.unbanUser(data),
+
+  adminRemoveUser: async (data: { userId: string }) =>
+    await authClient.admin.removeUser(data),
 
   useSession: authClient.useSession,
 };

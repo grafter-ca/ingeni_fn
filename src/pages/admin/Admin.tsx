@@ -1,4 +1,3 @@
-// src/pages/admin/Admin.tsx
 import { useEffect, useState } from "react";
 import { useProductStore } from "../../store/productStore";
 import { useAuthActions, useAuthState } from "../../context/AuthContext";
@@ -17,10 +16,8 @@ function Admin() {
   const [userCount, setUserCount] = useState(0);
 
   useEffect(() => {
-    // 1. Wait until global auth loading finishes
     if (isAuthLoading) return;
 
-    // 2. If no user session exists, stop loading
     if (!user) {
       setLoading(false);
       return;
@@ -30,21 +27,24 @@ function Admin() {
 
     const init = async () => {
       setLoading(true);
-      
-      // Buffer safeguard: Give the browser cookie storage 100ms to stabilize 
-      // across cross-origin boundaries on Render deployment.
+       
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       if (!isMounted) return;
 
       try {
-        const userRes = await admin.listUsers({ limit: 1 });
+        const userRes: any = await admin.listUsers({ limit: 1 });
+        console.log("Raw admin.listUsers response:", userRes);
+
         await Promise.all([
           fetchProducts(),
           fetchAllOrders()
         ]);
+
         if (isMounted) {
-          setUserCount(userRes?.total || 0);
+          // Extract total safely from nested data payload or fallback structures
+          const resolvedTotal = userRes?.data?.total ?? userRes?.total ?? 0;
+          setUserCount(resolvedTotal);
         }
       } catch (err) {
         console.error("Dashboard Sync Error:", err);
@@ -108,10 +108,10 @@ function Admin() {
   );
 }
 
-const QuickLink = ({ href, label, desc, accent }: any) => (
+const QuickLink = ({ href, label, desc, accent }: { href: string; label: string; desc: string; accent: string }) => (
   <a
     href={href}
-    className="group p-6 bg-[#0a0a0a] border border-white/5 rounded-4xl hover:bg-white/20 transition-all relative overflow-hidden"
+    className="group p-6 bg-[#0a0a0a] border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all relative overflow-hidden block"
   >
     <div className="flex justify-between items-center mb-1">
       <span className={`text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 ${accent} transition-colors`}>
