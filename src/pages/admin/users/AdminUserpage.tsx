@@ -1,7 +1,8 @@
+// src/pages/admin/users/AdminUserPage.tsx
 import { useState, useEffect } from "react";
 import { ShieldCheck, LayoutDashboard, Users, Settings, Activity } from "lucide-react";
 import UserManagementPage from "../../../features/admin/user/UserManagement";
-import AdminOverview from "./AdminOverview";
+import AdminOverview, { type SystemHealthMetric } from "./AdminOverview";
 import GlobalConfig from "./GlobalConfig";
 import SystemLogs from "./SystemLogs";
 import { useAuthActions } from "../../../context/AuthContext";
@@ -16,14 +17,14 @@ const AdminUserPage = () => {
     loading: true
   });
 
+  // Mock telemetry states for hardware/edge integration
+  const [systemLatency, setSystemLatency] = useState(38);
+
   // Fetch real-time total from Better-Auth admin service
   useEffect(() => {
     const syncTelemetry = async () => {
       try {
-        // limit: 1 is a performance trick to get the 'total' without downloading all users
         const res = await admin.listUsers({ limit: 1 }); 
-        
-        // Extract total safely accounting for Better-Auth's response wrapper structure ({ data: { total }, error })
         const responseData = res?.data || res;
 
         setRegistryStats({
@@ -33,11 +34,18 @@ const AdminUserPage = () => {
       } catch (err) {
         console.error("Telemetry link failed:", err);
         setRegistryStats(prev => ({ ...prev, loading: false }));
+        setSystemLatency(prev => prev + 15);
       }
     };
     
     syncTelemetry();
   }, [admin]);
+
+  const mockHealthMetrics: SystemHealthMetric[] = [
+    { label: "Database Cluster Load", percent: 24, color: "bg-blue-500" },
+    { label: "Edge Worker Memory", percent: 42, color: "bg-purple-500" },
+    { label: "API Cache Hit Rate", percent: 89, color: "bg-emerald-500" },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#050505] rounded-4xl p-4">
@@ -88,6 +96,10 @@ const AdminUserPage = () => {
           <AdminOverview 
             totalUsers={registryStats.total} 
             isLoading={registryStats.loading} 
+            authVersion="v1.2.4-prod"
+            systemLatencyMs={systemLatency}
+            edgeRegion="kgl-central-1"
+            healthMetrics={mockHealthMetrics}
           />
         )}
         
@@ -118,7 +130,7 @@ const NavItem = ({ icon, label, active = false, onClick }: NavItemProps) => (
   <button 
     onClick={onClick}
     className={`
-      w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group
+      w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group cursor-pointer
       ${active 
         ? "bg-blue-600/10 border border-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/5" 
         : "text-gray-500 hover:bg-white/5 hover:text-white border border-transparent"}

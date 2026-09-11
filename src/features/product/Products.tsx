@@ -35,6 +35,7 @@ const Products = () => {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 20000]);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState(1);
   const PER_PAGE = 12;
@@ -46,14 +47,14 @@ const Products = () => {
     fetchCategories();
   }, [fetchCategories]);
 
-// Inside your Products.tsx initialization or category sync effect:
-useEffect(() => {
-  if (!initialFetchDone.current) {
-    initialFetchDone.current = true;
-    // Pass the categoryIdParam directly to your initial fetch if present in the URL
-    fetchPublicProducts({ limit: 40, categoryId: categoryIdParam || undefined });
-  }
-}, [fetchPublicProducts, categoryIdParam]);
+  // Inside your Products.tsx initialization or category sync effect:
+  useEffect(() => {
+    if (!initialFetchDone.current) {
+      initialFetchDone.current = true;
+      // Pass the categoryIdParam directly to your initial fetch if present in the URL
+      fetchPublicProducts({ limit: 40, categoryId: categoryIdParam || undefined });
+    }
+  }, [fetchPublicProducts, categoryIdParam]);
 
   // Synchronize URL categoryIdParam with store state safely
   useEffect(() => {
@@ -71,7 +72,7 @@ useEffect(() => {
   // Reset pagination on filter change
   useEffect(() => {
     setPage(1);
-  }, [selectedCategory, searchQuery, selectedLocation, selectedStore, priceRange]);
+  }, [selectedCategory, searchQuery, selectedLocation, selectedStore, selectedRating, priceRange]);
 
   // Combined filtering & sorting
   const sorted = useMemo(() => {
@@ -84,7 +85,10 @@ useEffect(() => {
       const matchesStore = !selectedStore || 
         (p.vendor?.storeName && p.vendor.storeName.toLowerCase() === selectedStore.toLowerCase());
 
-      const passesBaseFilters = matchesPrice && matchesLocation && matchesStore;
+      const matchesRating = selectedRating === null || 
+        ((p.rating ?? 0) >= selectedRating);
+
+      const passesBaseFilters = matchesPrice && matchesLocation && matchesStore && matchesRating;
 
       if (!searchQuery) return passesBaseFilters;
       const query = searchQuery.toLowerCase();
@@ -99,7 +103,7 @@ useEffect(() => {
     if (sortBy === "newest") result.sort((a, b) => Number(b.id) - Number(a.id));
     
     return result;
-  }, [filteredProducts, priceRange, selectedLocation, selectedStore, searchQuery, sortBy]);
+  }, [filteredProducts, priceRange, selectedLocation, selectedStore, selectedRating, searchQuery, sortBy]);
 
   const paginated = useMemo(() => sorted.slice(0, page * PER_PAGE), [sorted, page]);
   const hasMoreClientItems = paginated.length < sorted.length;
@@ -168,6 +172,8 @@ useEffect(() => {
                 onLocationChange={setSelectedLocation}
                 selectedStore={selectedStore}
                 onStoreChange={setSelectedStore}
+                onRatingChange={setSelectedRating}
+                selectedRating={selectedRating}
               />
             </motion.div>
           </>
@@ -224,6 +230,8 @@ useEffect(() => {
             onLocationChange={setSelectedLocation}
             selectedStore={selectedStore}
             onStoreChange={setSelectedStore}
+            onRatingChange={setSelectedRating}
+            selectedRating={selectedRating}
           />
         </aside>
 
@@ -299,6 +307,7 @@ useEffect(() => {
                       handleClear();
                       setSelectedLocation(null);
                       setSelectedStore(null);
+                      setSelectedRating(null);
                       setPriceRange([0, 20000]);
                       handleCategorySelect(null);
                     }}

@@ -45,13 +45,20 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({ vend
     };
   }, [vendorId, isAuthLoading, user]);
 
+  const getTrafficCount = (curr: any) => {
+    if (typeof curr.count === 'number') return curr.count;
+    if (curr.count && typeof curr.count.id === 'number') return curr.count.id;
+    if (typeof curr._count?.id === 'number') return curr._count.id;
+    return 1;
+  };
+
   const whatsappCount = stats
     .filter((s: any) => s.actionType === 'whatsapp')
-    .reduce((acc, curr) => acc + (curr._count?.id || curr.count || 1), 0);
+    .reduce((acc, curr) => acc + getTrafficCount(curr), 0);
 
   const callCount = stats
     .filter((s: any) => s.actionType === 'call')
-    .reduce((acc, curr) => acc + (curr._count?.id || curr.count || 1), 0);
+    .reduce((acc, curr) => acc + getTrafficCount(curr), 0);
 
   const totalClicks = whatsappCount + callCount;
 

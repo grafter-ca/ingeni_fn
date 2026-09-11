@@ -1,7 +1,6 @@
 // src/pages/Login.tsx
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { useAuthActions, useAuthState } from "../context/AuthContext";
 import { Store, ArrowLeft, Eye, EyeOff } from "lucide-react";
