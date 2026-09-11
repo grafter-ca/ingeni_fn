@@ -13,6 +13,8 @@ type Props = {
   onLocationChange: (location: string | null) => void;
   selectedStore: string | null;
   onStoreChange: (store: string | null) => void;
+  selectedRating: number | null;
+  onRatingChange: (rating: number | null) => void;
 };
 
 const ProductSidebar = ({ 
@@ -21,13 +23,14 @@ const ProductSidebar = ({
   selectedLocation, 
   onLocationChange,
   selectedStore,
-  onStoreChange 
+  onStoreChange,
+  selectedRating,
+  onRatingChange
 }: Props) => {
   const { categories, selectedCategory, setCategory, clearFilters, products } = useProductStore();
   const [, setSearchParams] = useSearchParams();
 
-  // Local state for categories pagination and verification ratings
-  const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  // Local state for categories pagination
   const [visibleCategoriesCount, setVisibleCategoriesCount] = useState<number>(5);
 
   // Extract unique active vendors/stores dynamically from available products
@@ -52,7 +55,9 @@ const ProductSidebar = ({
     onPriceChange([0, 20000]);
     onLocationChange(null);
     onStoreChange(null);
-    setSelectedRating(null);
+    if (typeof onRatingChange === 'function') {
+    onRatingChange(null);
+  }
     setVisibleCategoriesCount(5);
     setSearchParams({});
   };
@@ -265,7 +270,7 @@ const ProductSidebar = ({
           {[5, 4, 3].map((star) => (
             <motion.li key={star} whileHover={{ x: 2 }} transition={{ duration: 0.15 }}>
               <button 
-                onClick={() => setSelectedRating(selectedRating === star ? null : star)}
+                onClick={() => onRatingChange(selectedRating === star ? null : star)}
                 className={`flex items-center gap-3 group w-full cursor-pointer py-1 ${
                   selectedRating === star ? "opacity-100" : "opacity-80"
                 }`}

@@ -255,8 +255,8 @@ export default function ProductDetail() {
   };
 
   // Calculate the dynamic average rating from the loaded reviews for this product
-const totalRating = reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
-const calculatedAverageRating = reviews.length > 0 ? totalRating / reviews.length : 0.0;
+  const totalRating = reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
+  const calculatedAverageRating = reviews.length > 0 ? totalRating / reviews.length : 0.0;
 
   if (isLoading) {
     return (
@@ -441,7 +441,8 @@ const calculatedAverageRating = reviews.length > 0 ? totalRating / reviews.lengt
 
                 <div className="flex items-center gap-1 text-amber-500 ml-auto text-xs font-bold bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
                   <Star size={12} fill="currentColor" />
-                  <span>4.8</span>
+                  <span>{calculatedAverageRating > 0 ? calculatedAverageRating.toFixed(1) : "No Rating"}</span>
+                  {reviews.length > 0 && <span className="text-[10px] text-zinc-400 ml-0.5">({reviews.length})</span>}
                 </div>
               </div>
 

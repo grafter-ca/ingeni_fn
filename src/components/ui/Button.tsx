@@ -10,7 +10,7 @@ const Button = ({
   iconPosition = "right",
   onClick,
 }: ButtonProps) => {
-  const base = "font-poppins font-medium px-2 py-3 text-sm capitalize tracking-widest transition-all rounded-xl cursor-pointer flex items-center justify-center shadow-sm";
+  const base = "font-poppins font-medium px-4 py-2 text-sm capitalize tracking-widest transition-all rounded-xl cursor-pointer flex items-center justify-center shadow-sm";
 
   const styles = {
     primary: "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100",

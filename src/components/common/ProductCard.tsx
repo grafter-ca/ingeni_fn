@@ -93,14 +93,14 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
   const cleanPhone = product.vendor?.phone?.replace(/[^0-9+]/g, "") || "";
 
   return (
-    <motion.div
-      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-600/10 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full select-none"
-      whileHover={{ y: -4 }}
+    <motion.section
+      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-300/20 hover:shadow-blue-600/10 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full select-none"
+      whileHover={{ y: -0.5 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       onClick={() => navigate(`/products/${product.id}`)}
     >
       {/* ── 1. Image & Overlay Container (Explicit aspect ratio locks CLS) ── */}
-      <div className="relative overflow-hidden aspect-[4/3] sm:aspect-square bg-zinc-100 dark:bg-[#121212]">
+      <section className="relative overflow-hidden aspect-[4/3] sm:aspect-square bg-zinc-100 dark:bg-[#121212]">
         <img
           src={mainImage}
           alt={product.title}
@@ -125,7 +125,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
           </motion.button>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex items-end sm:items-center justify-end sm:justify-center p-2.5 sm:p-0 gap-2">
+        <article className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex items-end sm:items-center justify-end sm:justify-center p-2.5 sm:p-0 gap-2">
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
@@ -145,9 +145,9 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
           >
             <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
           </motion.button>
-        </div>
+        </article>
 
-        <div className="absolute top-2.5 left-2.5">
+        <article className="absolute top-2.5 left-2.5">
           <span
             className={`text-[9px] font-mono px-2 py-0.5 rounded-full backdrop-blur-md border shadow-md ${
               product.stock > 0
@@ -157,12 +157,12 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
           >
             {product.stock > 0 ? `${product.stock} left` : "Out of stock"}
           </span>
-        </div>
-      </div>
+        </article>
+      </section>
 
       {/* ── 2. Card Information Body ── */}
-      <div className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-2.5">
-        <div className="space-y-1">
+      <section className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-2.5">
+        <article className="space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest truncate max-w-[65%]">
               {product.category?.name || "General"}
@@ -180,9 +180,9 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
           <h3 className="font-semibold text-zinc-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
             {product.title}
           </h3>
-        </div>
+        </article>
 
-        <div className="space-y-1.5 pt-1.5 border-t border-zinc-200 dark:border-white/5">
+        <article className="space-y-1.5 pt-1.5 border-t border-zinc-200 dark:border-white/5">
           <div className="flex items-center gap-1.5 text-zinc-700 dark:text-gray-300">
             <Store size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />
             <span className="text-[11px] font-medium truncate">
@@ -222,10 +222,10 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
               </ContactActionBtn>
             </div>
           )}
-        </div>
+        </article>
 
         {/* ── 3. Footer: Price & Stock ── */}
-        <div className="pt-2 flex items-center justify-between border-t border-zinc-200 dark:border-white/5 mt-auto">
+        <article className="pt-2 flex items-center justify-between border-t border-zinc-200 dark:border-white/5 mt-auto">
           <div>
             <span className="text-[9px] text-zinc-500 dark:text-gray-500 uppercase tracking-widest block">
               Price
@@ -244,9 +244,9 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
           >
             {product.stock > 0 ? `${product.stock} in stock` : "Sold Out"}
           </div>
-        </div>
-      </div>
-    </motion.div>
+        </article>
+      </section>
+    </motion.section>
   );
 };
 
