@@ -1,3 +1,4 @@
+// src/services/productService.ts
 import { localApi } from "../libs/api";
 import type { ApiProduct, ApiCategory, ProductFilters } from "../types/api";
 import type { ReviewItem } from "../types"; // Adjust path to your ReviewItem type if needed
@@ -18,42 +19,34 @@ export const productService = {
   getClient: () => localApi,
 
   /**
-   * FETCH PRODUCTS
+   * FETCH PRODUCTS (Routes through public endpoint to prevent 401 unauthorized errors)
    */
-  getProducts: async (filters: ProductFilters = {}): Promise<ApiProduct[]> => {
-    const params = new URLSearchParams();
-
-    const limit = filters.limit ?? 20;
-    const offset = filters.offset ?? 0;
-
-    if (filters.title) params.append("title", filters.title);
-    if (filters.categoryName) params.append("categoryName", filters.categoryName);
-    if (filters.price_min) params.append("price_min", String(filters.price_min));
-    if (filters.price_max) params.append("price_max", String(filters.price_max));
-
-    params.append("limit", String(limit));
-    params.append("offset", String(offset));
-
-    const query = `?${params.toString()}`;
-    const response = await localApi.get<ApiProduct[]>(`/products${query}`);
-    
-    const items = extractArray<ApiProduct>(response);
-    return items.map((p) => ({
-      ...p,
-      id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
-    }));
+  getProducts: async (filters: ProductFilters & { categoryId?: string; vendorId?: string } = {}): Promise<ApiProduct[]> => {
+    return productService.getProductsPublic(filters);
   },
 
   /**
    * FETCH PRODUCTS FOR PUBLIC (products/public)
    */
-  getProductsPublic: async (filters: ProductFilters = {}): Promise<ApiProduct[]> => {
+  getProductsPublic: async (filters: ProductFilters & { categoryId?: string; vendorId?: string } = {}): Promise<ApiProduct[]> => {
     const params = new URLSearchParams();
 
     if (filters.title) params.append("title", filters.title);
     if (filters.categoryName) params.append("categoryName", filters.categoryName);
+
+    if (filters.categoryId) {
+      const cleanCatId = String(filters.categoryId).replace(/^local-/, "");
+      params.append("categoryId", cleanCatId);
+    }
+
+    if (filters.vendorId) {
+      const cleanVendorId = String(filters.vendorId).replace(/^local-/, "");
+      params.append("vendorId", cleanVendorId);
+    }
+
     if (filters.price_min) params.append("price_min", String(filters.price_min));
     if (filters.price_max) params.append("price_max", String(filters.price_max));
+    
     params.append("limit", String(filters.limit ?? 20));
     params.append("offset", String(filters.offset ?? 0));
 

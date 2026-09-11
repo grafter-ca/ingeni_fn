@@ -159,23 +159,23 @@ const Login: React.FC = () => {
           )}
 
           <div className="pt-2">
-            <Button 
-              disabled={loading} 
-              label={
-                loading ? (
-                  <div className="flex items-center justify-center gap-2.5 w-full">
-                    <svg className="animate-spin h-4 w-4 text-zinc-900 dark:text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                    </svg>
-                    <span className="leading-none text-zinc-900 dark:text-white">Signing in...</span>
-                  </div>
-                ) : (
-                  "Sign In"
-                )
-              } 
-              type="submit" 
-            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full relative flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#0a0a0a]"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center gap-2.5">
+                  <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  <span>Signing in...</span>
+                </div>
+              ) : (
+                "Sign In"
+              )}
+            </button>
           </div>
         </form>
 

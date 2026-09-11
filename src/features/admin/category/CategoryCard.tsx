@@ -25,8 +25,9 @@ function CategoryCard({
   return (
     <motion.div
       onClick={onClick}
-      whileHover={{ y: -5 }}
+      whileHover={{ y: -0.5 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      title={`Open Products for ${name}`}
       className="group relative bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-white/5 rounded-2xl p-4 flex flex-col justify-between cursor-pointer hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-600/10 transition-all duration-300 overflow-hidden h-full"
     >
       <div>

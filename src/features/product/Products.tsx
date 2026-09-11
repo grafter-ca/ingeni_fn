@@ -39,7 +39,6 @@ const Products = () => {
   const [page, setPage] = useState(1);
   const PER_PAGE = 12;
 
-  // Track initial data fetch to prevent re-fetching loops
   const initialFetchDone = useRef(false);
 
   // Fetch categories on mount
@@ -47,26 +46,22 @@ const Products = () => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Initial public products load on mount only
-  useEffect(() => {
-    if (!initialFetchDone.current) {
-      initialFetchDone.current = true;
-      fetchPublicProducts({ limit: 40 });
-    }
-  }, [fetchPublicProducts]);
+// Inside your Products.tsx initialization or category sync effect:
+useEffect(() => {
+  if (!initialFetchDone.current) {
+    initialFetchDone.current = true;
+    // Pass the categoryIdParam directly to your initial fetch if present in the URL
+    fetchPublicProducts({ limit: 40, categoryId: categoryIdParam || undefined });
+  }
+}, [fetchPublicProducts, categoryIdParam]);
 
-  // Synchronize URL categoryIdParam with store state safely without infinite loops
+  // Synchronize URL categoryIdParam with store state safely
   useEffect(() => {
+    const currentCatStr = selectedCategory !== null ? String(selectedCategory) : null;
     if (categoryIdParam) {
-      if (categories.length > 0) {
-        const matchedCat = categories.find(c => String(c.id) === String(categoryIdParam));
-        if (matchedCat) {
-          setCategory(matchedCat.id);
-        } else {
-          setCategory(categoryIdParam);
-        }
-      } else {
-        setCategory(categoryIdParam);
+      if (currentCatStr !== String(categoryIdParam)) {
+        const matchedCat = categories.find((c) => String(c.id) === String(categoryIdParam));
+        setCategory(matchedCat ? matchedCat.id : categoryIdParam);
       }
     } else if (selectedCategory !== null) {
       setCategory(null);
@@ -78,24 +73,19 @@ const Products = () => {
     setPage(1);
   }, [selectedCategory, searchQuery, selectedLocation, selectedStore, priceRange]);
 
-  // Combined filtering: Category/Price range + Location + Store + Search Query matching
+  // Combined filtering & sorting
   const sorted = useMemo(() => {
     let result = [...filteredProducts].filter((p) => {
-      // 1. Price Threshold Filter Check
       const matchesPrice = Number(p.price) >= priceRange[0] && Number(p.price) <= priceRange[1];
       
-      // 2. Real Location/District Filter Check (e.g. Kigali, Rubavu, Musanze)
       const matchesLocation = !selectedLocation || 
         (p.location && p.location.toLowerCase().includes(selectedLocation.toLowerCase()));
 
-      // 3. Vendor/Store Matrix Filter Check
       const matchesStore = !selectedStore || 
         (p.vendor?.storeName && p.vendor.storeName.toLowerCase() === selectedStore.toLowerCase());
 
-      // Base combination check before search query validation
       const passesBaseFilters = matchesPrice && matchesLocation && matchesStore;
 
-      // 4. Search Query matching across title and category name
       if (!searchQuery) return passesBaseFilters;
       const query = searchQuery.toLowerCase();
       const titleMatch = p.title?.toLowerCase().includes(query);
@@ -112,17 +102,16 @@ const Products = () => {
   }, [filteredProducts, priceRange, selectedLocation, selectedStore, searchQuery, sortBy]);
 
   const paginated = useMemo(() => sorted.slice(0, page * PER_PAGE), [sorted, page]);
-  const hasMore = paginated.length < sorted.length;
+  const hasMoreClientItems = paginated.length < sorted.length;
 
   const handleLoadMore = useCallback(() => {
-    if (hasMore) {
+    if (hasMoreClientItems) {
       setPage((p) => p + 1);
     } else {
       fetchMoreProducts();
     }
-  }, [hasMore, fetchMoreProducts]);
+  }, [hasMoreClientItems, fetchMoreProducts]);
 
-  // Find the matching human-readable category name from your categories array
   const currentCategoryName = useMemo(() => {
     if (!selectedCategory) return "Collections";
 
@@ -202,25 +191,24 @@ const Products = () => {
               <SearchBar />
             </div>
             <div className="flex gap-4">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="bg-white dark:bg-[#050505] border rounded-xl border-zinc-200 dark:border-white/5 text-zinc-600 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider px-3 md:px-4 py-2.5 outline-none cursor-pointer hover:border-zinc-400 dark:hover:border-white/20 hover:text-zinc-900 dark:hover:text-white transition-all font-mono"
+              >
+                <option value="default">Default Matrix</option>
+                <option value="price_asc">Price: Ascending</option>
+                <option value="price_desc">Price: Descending</option>
+                <option value="newest">Latest Drop</option>
+              </select>
 
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="bg-white dark:bg-[#050505] border rounded-xl border-zinc-200 dark:border-white/5 text-zinc-600 dark:text-gray-400 text-[10px] font-bold uppercase tracking-wider px-3 md:px-4 py-2.5 outline-none cursor-pointer hover:border-zinc-400 dark:hover:border-white/20 hover:text-zinc-900 dark:hover:text-white transition-all font-mono"
-            >
-              <option value="default">Default Matrix</option>
-              <option value="price_asc">Price: Ascending</option>
-              <option value="price_desc">Price: Descending</option>
-              <option value="newest">Latest Drop</option>
-            </select>
-
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden flex space-x-2 items-center justify-center text-white bg-blue-600 p-2.5 rounded-xl active:scale-95 transition-all shadow-lg shadow-blue-600/20 cursor-pointer"
-            >
-              <SlidersHorizontal size={18} />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Open Filters</span>
-            </button>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden flex space-x-2 items-center justify-center text-white bg-blue-600 p-2.5 rounded-xl active:scale-95 transition-all shadow-lg shadow-blue-600/20 cursor-pointer"
+              >
+                <SlidersHorizontal size={18} />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Open Filters</span>
+              </button>
             </div>
           </div>
         </div>
@@ -239,7 +227,7 @@ const Products = () => {
           />
         </aside>
 
-       <main className="flex-1 px-4 md:px-8 py-4 md:py-9">
+        <main className="flex-1 px-4 md:px-8 py-4 md:py-9">
           {error && (
             <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 mb-8 text-rose-600 dark:text-rose-400 text-xs font-mono flex items-center gap-3">
               <X size={14} /> telemetry error: {error}
@@ -278,7 +266,7 @@ const Products = () => {
 
                   {/* Load More Button Wrapper */}
                   <div className="flex flex-col items-center justify-center mt-16 gap-4">
-                    {(hasMore || isFetchingMore) && (
+                    {(hasMoreClientItems || isFetchingMore) && (
                       <motion.button
                         onClick={handleLoadMore}
                         disabled={isFetchingMore}

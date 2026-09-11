@@ -108,8 +108,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
   },
 
   initSocket: () => {
+    // Fixed: socket.hasListeners is a method in socket.io-client, check it properly or avoid double binding via flag/connected check
     if (socket.hasListeners && socket.hasListeners("productUpdated")) return;
-    if (!socket.hasListeners && socket.connected) return;
 
     socket.on("connect", () => {
       console.log("⚡ Connected to real-time socket server:", socket.id);
@@ -342,7 +342,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
 
-  applyFilters: () => {
+applyFilters: () => {
     const { products, searchQuery, selectedCategory, selectedVendorId } = get();
 
     const categories = get().categories;
@@ -351,6 +351,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
     );
     const targetCatId = matchedCategory ? String(matchedCategory.id) : null;
     const targetCatName = matchedCategory ? matchedCategory.name.toLowerCase() : String(selectedCategory || "").toLowerCase();
+    
+    // Strip "local-" prefix on both sides to ensure matching works seamlessly
+    const cleanTargetCatId = targetCatId ? targetCatId.replace(/^local-/, "") : null;
+    const cleanSelectedCategory = selectedCategory ? String(selectedCategory).replace(/^local-/, "") : null;
 
     const filtered = products.filter((p: any) => {
       const pVendorId = p.vendorId || p.vendor?.id || p.vendor?.userId || "";
@@ -360,10 +364,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
       if (selectedCategory) {
         const pCatId = p.categoryId || p.category?.id;
         const pCatName = p.categoryName || p.category?.name || "";
+        const cleanPCatId = pCatId ? String(pCatId).replace(/^local-/, "") : "";
 
-        const matchById = targetCatId && pCatId ? String(pCatId) === targetCatId : false;
+        const matchById = (cleanTargetCatId && cleanPCatId) ? cleanPCatId === cleanTargetCatId : false;
         const matchByName = targetCatName ? String(pCatName).toLowerCase() === targetCatName : false;
-        const matchDirect = String(pCatId) === String(selectedCategory);
+        const matchDirect = cleanPCatId === cleanSelectedCategory || String(pCatId) === String(selectedCategory);
 
         matchesCategory = Boolean(matchById || matchByName || matchDirect);
       }
@@ -376,7 +381,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return matchesVendor && matchesCategory && matchesSearch;
     });
 
-    set({ filteredProducts: filtered.length > 0 ? filtered : products });
+    // Directly set filtered (allows empty arrays so empty states render properly)
+    set({ filteredProducts: filtered });
   },
 
   updateFormData: (data) =>

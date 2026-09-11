@@ -44,6 +44,7 @@ import ProtectedRoute from "./components/common/ProtectedRoute";
 
 // Protocol Handler component we created above
 import { ProtocolHandler } from "./components/common/ProtocolHandler";
+import CategoriesPage from "./pages/CategoriesPage";
 
 export const router = createBrowserRouter([
   // --- 1. STANDALONE AUTHENTICATION ROUTES ---
@@ -76,6 +77,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: "about", element: <About /> },
+      { path: "categories", element: <CategoriesPage /> },
       { path: "products", element: <Products /> },
       { path: "products/:id", element: <ProductDetail /> },
       { path: "verify-email", element: <VerifyEmail /> },
