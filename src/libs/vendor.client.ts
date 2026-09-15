@@ -1,7 +1,7 @@
 // src/api/client.ts
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.BETTER_AUTH_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.BETTER_AUTH_URL || "https://ingeri-api.onrender.com/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
