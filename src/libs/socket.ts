@@ -2,7 +2,7 @@ import { io, Socket } from "socket.io-client";
 
 const SOCKET_URL = (import.meta.env.VITE_BETTER_AUTH_URL 
   ? `${import.meta.env.VITE_BETTER_AUTH_URL}` 
-  : "http://localhost:8000");
+  : "https://ingeri-api.onrender.com");
 
 class SocketClient {
   private static instance: SocketClient;

@@ -1,7 +1,10 @@
 import { io } from 'socket.io-client';
 
+const LOCAL_BASE = "https://ingeri-api.onrender.com";
+
+
 // Connect directly to your NestJS backend socket namespace
-export const socket = io('http://localhost:8000/ws', {
+export const socket = io(LOCAL_BASE + '/ws', {
   withCredentials: true,
   transports: ['websocket', 'polling'],
 });
