@@ -27,9 +27,7 @@ const UserManagementPage = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const res = await admin.listUsers(query);
-      console.log("Raw admin.listUsers response:", res);
-      
+      const res = await admin.listUsers(query);      
       // Extract data safely accounting for Better-Auth's response wrapper structure ({ data: { users, total }, error })
       const responseData = res?.data || res;
       

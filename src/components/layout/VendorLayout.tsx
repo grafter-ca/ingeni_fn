@@ -1,9 +1,11 @@
 // src/components/layout/VendorLayout.tsx
 import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, ShoppingCart, Settings, Menu, X, Store, Bell } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Settings, Menu, X, Store, Bell, Wallet } from "lucide-react";
 import { useOrderStore } from "../../store/useOrderStore";
 import { useProductStore } from "../../store/productStore";
+import { useVendorStore } from "../../store/vendorStore";
+import { useAuthState } from "../../context/AuthContext"; 
 import Logout from "../../components/ui/Logout";
 
 const VendorLayout = () => {
@@ -12,17 +14,35 @@ const VendorLayout = () => {
 
   const { orders, fetchVendorOrders } = useOrderStore();
   const { fetchCategories, fetchVendorProducts } = useProductStore();
+  const { fetchVendorFinancials } = useVendorStore();
+  const { user } = useAuthState();
+
+  const vendorId = user?.vendorId || user?.id;
 
   useEffect(() => {
     fetchVendorOrders();
     fetchVendorProducts();
     fetchCategories();
-  }, [fetchVendorOrders, fetchVendorProducts, fetchCategories]);
+    if (vendorId) {
+      fetchVendorFinancials(vendorId);
+    }
+  }, [fetchVendorOrders, fetchVendorProducts, fetchCategories, vendorId, fetchVendorFinancials]);
 
   const safeOrders = Array.isArray(orders) ? orders : [];
   
-  // Calculate total revenue dynamically from vendor orders
-  const totalRevenue = safeOrders.reduce((acc, order) => acc + (order.totalAmount || 0), 0);
+  // Calculate total vendor earnings by looping through all orders and their items safely
+  const totalVendorEarnings = safeOrders.reduce((acc, order) => {
+    const items = Array.isArray(order.items) ? order.items : [];
+    const orderEarnings = items.reduce((itemAcc, item) => {
+      const earnings = Number(item?.vendorEarnings) || 0;
+      return itemAcc + earnings;
+    }, 0);
+    return acc + orderEarnings;
+  }, 0);
+
+  // Format with thousand separator and remove any leading zeros
+  const netBalance = totalVendorEarnings.toLocaleString();
+
   const pendingCount = safeOrders.filter(o => o.status === 'PENDING').length;
 
   const menuItems = [
@@ -34,6 +54,7 @@ const VendorLayout = () => {
       icon: <ShoppingCart size={20} />, 
       badge: pendingCount > 0 ? pendingCount : null 
     },
+    { name: "Financials & Cashouts", path: "/vendor/financials", icon: <Wallet size={20} /> },
     { name: "Store Settings", path: "/vendor/settings", icon: <Settings size={20} /> },
   ];
 
@@ -111,8 +132,8 @@ const VendorLayout = () => {
         {/* Sidebar Footer */}
         <div className="pt-6 border-t border-white/10 space-y-3">
           <div className="px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/5 font-mono text-xs">
-            <span className="text-gray-500 block text-[10px] uppercase">Revenue Balance</span>
-            <span className="text-blue-400 font-bold">RWF {totalRevenue.toLocaleString()}</span>
+            <span className="text-gray-500 block text-[10px] uppercase">Net Sales.Earnings</span>
+            <span className="text-blue-400 font-bold">RWF {netBalance}</span>
           </div>
           {/* Replaced static link with real context-powered Logout button */}
           <div className="pt-1">

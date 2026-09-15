@@ -24,6 +24,7 @@ export type ApiProduct = {
   imageFiles?: File[]; 
   category: ApiCategory;
   vendor?: ApiVendor;
+  slug?: string;
   categoryId: string;
   vendorId?: string;
   rating?: number;
@@ -35,6 +36,8 @@ export type ApiProduct = {
     comment: string;
     createdAt: string;
   }>;
+  createdAt?: string;
+  updatedAt?: string;
 };
 export type ApiCategory = {
   id: string;
@@ -50,6 +53,8 @@ export type ApiVendor ={
   id: string;
   storeName: string;
   email?: string;
+  userId?: string;
+  businessDescription?: string | null;
   address?:string | null;
   phone?: string | null;
   image?: string | null;
@@ -165,6 +170,7 @@ export interface OrderItem {
   product: ApiProduct; // Full product details for the UI
   quantity: number;
   priceAtPurchase: number;
+  vendorEarnings:number;
 }
 
 // The Main Order Object

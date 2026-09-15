@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import CookieConsent from "../common/CookieConsent";
 
 const Layout = () => {
   return (
@@ -10,6 +11,9 @@ const Layout = () => {
         <Outlet />
       </div>
       <Footer />
+
+      {/* Global Cookie Consent Banner */}
+      <CookieConsent />
     </main>
   );
 };

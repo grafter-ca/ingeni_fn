@@ -34,7 +34,6 @@ function Admin() {
 
       try {
         const userRes: any = await admin.listUsers({ limit: 1 });
-        console.log("Raw admin.listUsers response:", userRes);
 
         await Promise.all([
           fetchProducts(),

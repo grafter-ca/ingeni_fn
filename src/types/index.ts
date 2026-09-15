@@ -112,6 +112,7 @@ export interface ApiOrder {
   id: string;
   orderNumber: string;
   totalAmount: number;
+  taxAmount?:number;
   status: 'PENDING' | 'DELIVERED' | 'SHIPPED' | 'CANCELLED';
   user?: {
     name: string;

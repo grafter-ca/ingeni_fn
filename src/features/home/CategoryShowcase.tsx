@@ -56,20 +56,20 @@ const CategoryShowcase = () => {
   };
 
   return (
-    <section className="px-6 py-8 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#050505] relative overflow-hidden transition-colors">
+    <section className="px-6 py-4 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#050505] relative overflow-hidden transition-colors">
       {/* Background Glow matching your blue/green/gray theme */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-blue-600/[0.03] dark:bg-emerald-600/[0.03] rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <article className="max-w-7xl mx-auto relative z-10">
         {/* Section Header */}
-        <motion.div
-          className="flex flex-col md:flex-row md:items-end mb-6 justify-between gap-4"
+        <motion.section
+          className="flex flex-col md:flex-row md:items-end mb-2 justify-between gap-4"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <div>
+          <section className="flex flex-col gap-1">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200 dark:border-white/10 mb-3 backdrop-blur-md shadow-inner">
               <Layers size={14} className="text-blue-600 dark:text-emerald-400" />
               <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-600 dark:text-gray-300">
@@ -79,15 +79,15 @@ const CategoryShowcase = () => {
             <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 dark:text-white font-poppins">
               Shop by Category
             </h2>
-          </div>
+          </section>
 
-          <div className="flex items-center justify-between md:justify-end gap-4">
+          <section className="flex items-center justify-between md:justify-end gap-4">
             <p className="font-poppins text-xs md:text-sm text-zinc-500 dark:text-gray-400 max-w-xs leading-relaxed hidden sm:block">
               Discover locally sourced commodities, daily goods, and vendor supplies.
             </p>
 
             {/* Scroll Controls & View All */}
-            <div className="flex items-center gap-2">
+            <section className="flex items-center gap-2">
               <button
                 onClick={() => scroll("left")}
                 className="p-2 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.02] hover:bg-zinc-100 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-gray-300 transition-colors shadow-sm cursor-pointer"
@@ -109,12 +109,12 @@ const CategoryShowcase = () => {
                 <span>View All</span>
                 <ArrowRight size={14} />
               </button>
-            </div>
-          </div>
-        </motion.div>
+            </section>
+          </section>
+        </motion.section>
 
         {/* Horizontal Scrollable Categories Container */}
-        <div
+        <section
           ref={scrollContainerRef}
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
@@ -128,7 +128,7 @@ const CategoryShowcase = () => {
               </div>
             ))
           ) : categories.length === 0 ? (
-            <div className="flex gap-5 w-full overflow-x-auto no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+            <section className="flex gap-5 w-full overflow-x-auto no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
               <div data-card-item className="min-w-[280px] sm:min-w-[320px] p-6 rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0a0a0a] flex flex-col justify-between shrink-0 shadow-sm">
                 <div>
                   <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 mb-3">
@@ -142,7 +142,7 @@ const CategoryShowcase = () => {
                   </p>
                 </div>
               </div>
-            </div>
+            </section>
           ) : (
             categories.map((cat) => (
               <div
@@ -161,8 +161,8 @@ const CategoryShowcase = () => {
               </div>
             ))
           )}
-        </div>
-      </div>
+        </section>
+      </article>
     </section>
   );
 };

@@ -28,7 +28,6 @@ const Login: React.FC = () => {
     }
 
     const normalizedRole = role?.toLowerCase();
-    console.log("Auth success. Role detected:", normalizedRole);
 
     switch (normalizedRole) {
       case "admin":

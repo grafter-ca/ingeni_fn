@@ -86,6 +86,16 @@ export const vendorService = {
     return response.data;
   },
 
+  submitCashoutRequest: async (vendorId: string, payload: { type: string; amount?: string; message: string }): Promise<any> => {
+    const response = await apiClient.post(`/vendors/${vendorId}/cashout-request`, payload);
+    return response.data;
+  },
+
+  getFinancials: async (vendorId: string): Promise<any> => {
+    const response = await apiClient.get(`/vendors/${vendorId}/financials`);
+    return response.data;
+  },
+
   submitAdminRequest: async (payload: { type: string; amount?: string; message: string }): Promise<any> => {
     const response = await apiClient.post(`/vendors/admin-request`, payload);
     return response.data;

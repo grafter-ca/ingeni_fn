@@ -60,6 +60,7 @@ interface ProductState {
   updateFormData: (data: Partial<ProductState["formData"]>) => void;
   setEditingProduct: (product: ApiProduct | null) => void;
   addProduct: (vendorId?: string, payload?: FormData) => Promise<void>;
+  toggleProductStatus: (id: string, isActive: boolean) => Promise<void>;
   updateProduct: (id: string, payload?: FormData) => Promise<void>;
   removeProduct: (id: string) => Promise<void>;
   clearFormData: () => void;
@@ -224,12 +225,14 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
 
-  fetchVendorProducts: async (_vendorId?: string) => {
+ fetchVendorProducts: async (vendorId?: string) => {
     set({ isLoading: true, error: null });
     try {
       let data;
       try {
-        data = await productService.getProducts();
+        // Pass vendorId to your service if your backend supports filtering (e.g., getProducts({ vendorId }))
+        // Or call a dedicated vendor endpoint if available: productService.getVendorProducts(vendorId)
+        data = await productService.getProducts(vendorId ? { vendorId } : {});
       } catch (err: any) {
         // Fallback to public endpoint if unauthorized/forbidden
         if (err?.response?.status === 403 || err?.status === 403 || err?.message?.includes("403") || err?.message?.includes("Forbidden")) {
@@ -238,9 +241,18 @@ export const useProductStore = create<ProductState>((set, get) => ({
           throw err;
         }
       }
+      
       const productList = Array.isArray(data) ? data : (data as any)?.products || [];
       
-      const sanitizedData = productList.map((p: any) => ({
+      // Explicit client-side safeguard: filter by vendorId if the backend returns all public products
+      const filteredByVendor = vendorId 
+        ? productList.filter((p: any) => {
+            const pVendorId = p.vendorId || p.vendor?.id;
+            return String(pVendorId) === String(vendorId);
+          })
+        : productList;
+
+      const sanitizedData = filteredByVendor.map((p: any) => ({
         ...p,
         images: Array.isArray(p.images)
           ? p.images.map((img: any) =>
@@ -248,11 +260,36 @@ export const useProductStore = create<ProductState>((set, get) => ({
             )
           : [],
       }));
+
       set({ products: sanitizedData, isLoading: false });
       get().applyFilters();
     } catch (err) {
       set({ error: "Failed to fetch vendor products", isLoading: false, filteredProducts: [] });
     }
+  },
+
+  toggleProductStatus: async (id: string, isActive: boolean) => {
+    const { products, updateProduct } = get();
+    const targetProduct = products.find((p: any) => String(p.id) === String(id));
+    if (!targetProduct) return;
+
+    const formData = new FormData();
+    formData.append("isActive", String(isActive));
+    formData.append("title", targetProduct.title || "");
+    formData.append("price", String(targetProduct.price ?? 0));
+    formData.append("stock", String(targetProduct.stock ?? 0));
+    
+    if (targetProduct.categoryId) {
+      formData.append("categoryId", targetProduct.categoryId);
+    }
+    if (targetProduct.description) {
+      formData.append("description", targetProduct.description);
+    }
+    if (targetProduct.location) {
+      formData.append("location", targetProduct.location);
+    }
+
+    await updateProduct(id, formData);
   },
 
   fetchMoreProducts: async () => {
@@ -414,61 +451,69 @@ applyFilters: () => {
     }
   },
 
-  addProduct: async (_vendorId?: string, payload?: FormData) => {
-    const { fetchProducts, fetchVendorProducts, selectedVendorId } = get();
+addProduct: async (_vendorId?: string, payload?: FormData) => {
+  const { fetchProducts, fetchVendorProducts, selectedVendorId } = get();
 
-    if (!payload) {
-      set({ error: "No data to save." });
-      return;
+  if (!payload) {
+    set({ error: "No data to save." });
+    return;
+  }
+
+  set({ isLoading: true, error: null });
+
+  try {
+    await productService.createProduct(payload);
+
+    if (selectedVendorId) {
+      await fetchVendorProducts(selectedVendorId);
+    } else {
+      await fetchProducts();
     }
 
-    set({ isLoading: true, error: null });
+    get().clearFormData();
+  } catch (err: any) {
+    // Safely parse error message whether it comes from Axios or native fetch text
+    const errorMsg = 
+      err?.response?.data?.message || 
+      err?.message || 
+      "Failed to save product.";
+      
+    console.error("[ProductStore] Add Product Error:", err);
+    set({ error: errorMsg });
+    throw err; // Re-throw so form handlers can catch it
+  } finally {
+    set({ isLoading: false, isEditing: null });
+  }
+},
+updateProduct: async (id: string, payload?: FormData) => {
+  const { fetchProducts, fetchVendorProducts, selectedVendorId } = get();
 
-    try {
-      await productService.createProduct(payload);
+  if (!payload) {
+    set({ error: "No data to update." });
+    return;
+  }
 
-      if (selectedVendorId) {
-        await fetchVendorProducts(selectedVendorId);
-      } else {
-        await fetchProducts();
-      }
+  set({ isLoading: true, error: null });
 
-      get().clearFormData();
-    } catch (err) {
-      set({ error: "Failed to save product. Please try again." });
-    } finally {
-      set({ isLoading: false, isEditing: null });
+  try {
+    await productService.updateProduct(id, payload);
+
+    if (selectedVendorId) {
+      await fetchVendorProducts(selectedVendorId);
+    } else {
+      await fetchProducts();
     }
-  },
 
-  updateProduct: async (id: string, payload?: FormData) => {
-    const { fetchProducts, fetchVendorProducts, selectedVendorId } = get();
-
-    if (!payload) {
-      set({ error: "No data to update." });
-      return;
-    }
-
-    set({ isLoading: true, error: null });
-
-    try {
-      await productService.updateProduct(id, payload);
-
-      if (selectedVendorId) {
-        await fetchVendorProducts(selectedVendorId);
-      } else {
-        await fetchProducts();
-      }
-
-      get().clearFormData();
-    } catch (err) {
-      set({
-        error: "Failed to update product. Please check your network and try again.",
-      });
-    } finally {
-      set({ isLoading: false, isEditing: null });
-    }
-  },
+    get().clearFormData();
+  } catch (err: any) {
+    const errorMsg = err?.response?.data?.message || err?.message || "Failed to update product.";
+    console.error("[ProductStore] Update Product Error:", err?.response?.data || err);
+    set({ error: errorMsg });
+    throw err; // Re-throw so form handlers can catch it
+  } finally {
+    set({ isLoading: false, isEditing: null });
+  }
+},
 
   removeProduct: async (id) => {
     set({ isLoading: true });

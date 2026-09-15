@@ -1,3 +1,4 @@
+// src/store/useOrderStore.ts
 import { create } from "zustand";
 import { OrderClient } from "../services/order.service";
 import type { Order, CreateOrderDto } from "../types/api";
@@ -11,7 +12,7 @@ interface OrderState {
   currentOrder: Order | null;
   orders: Order[];
   filteredOrders: Order[];
-  statusFilter: string;   
+  statusFilter: string;    
   socket: Socket | null;
 
   // --- SOCKET ACTIONS ---
@@ -35,6 +36,10 @@ interface OrderState {
   updateOrderStatus: (orderId: string, status: string) => Promise<Order>;
   updatePaymentStatus: (orderId: string, paymentStatus: string) => Promise<Order>;
   deleteOrder: (orderId: string) => Promise<void>;
+
+  // --- VENDOR FINANCIAL / ITEM HELPERS ---
+  getVendorTotalRevenue: (vendorId?: string) => number;
+  getVendorNetBalance: (vendorId?: string) => number;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -50,7 +55,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   initSocket: () => {
     // Prevent registering duplicate listeners if already initialized
     if (socket.hasListeners && socket.hasListeners("orderCreated")) return;
-
     if (!socket.hasListeners && socket.connected) return;
 
     socket.on("connect", () => {
@@ -88,7 +92,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   disconnectSocket: () => {
-    // Clean up store-specific listeners from the shared socket instance to prevent memory leaks
     socket.off("connect");
     socket.off("disconnect");
     socket.off("orderCreated");
@@ -162,11 +165,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }
   },
 
-  // --- SUBMIT PAYMENT PROOF ACTION (Delegating to OrderClient) ---
+  // --- SUBMIT PAYMENT PROOF ACTION ---
   submitPaymentProof: async (orderId, proofUrl, transactionReference) => {
     try {
       set({ loading: true, error: null });
-      
       const updatedOrder = await OrderClient.submitPaymentProof(orderId, proofUrl, transactionReference);
 
       set((state) => ({
@@ -199,13 +201,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   fetchAllOrders: async (status) => {
     try {
       set({ loading: true, error: null });
-      
       const targetFilter = status || get().statusFilter;
       const queryParam = targetFilter === "all" ? undefined : targetFilter;
       
       const orders = await OrderClient.getAllOrders(queryParam);
       set({ orders, loading: false });
-      
       get().applyFilters();
     } catch (err: any) {
       set({ error: err?.message || "Failed to fetch all orders", loading: false });
@@ -258,7 +258,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   deleteOrder: async (orderId) => {
     try {
       set({ loading: true, error: null });
-      
       const updatedOrder = await OrderClient.updateStatus(orderId, "CANCELLED");
 
       set((state) => ({
@@ -271,5 +270,39 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       set({ error: "Failed to cancel order", loading: false });
       throw err;
     }
+  },
+
+  // --- VENDOR FINANCIAL CALCULATORS (Safe checking items and vendor fields) ---
+  getVendorTotalRevenue: (vendorId) => {
+    const { orders } = get();
+    return orders.reduce((acc, order) => {
+      const items = Array.isArray(order.items) ? order.items : [];
+      const orderRev = items.reduce((itemAcc, item: any) => {
+        // If vendorId is supplied, filter specifically for items belonging to this vendor
+        if (vendorId && item?.vendorId !== vendorId && item?.vendor?.id !== vendorId) {
+          return itemAcc;
+        }
+        const price = Number(item?.priceAtPurchase) || 0;
+        const qty = Number(item?.quantity) || 1;
+        return itemAcc + (price * qty);
+      }, 0);
+      return acc + orderRev;
+    }, 0);
+  },
+
+  getVendorNetBalance: (vendorId) => {
+    const { orders } = get();
+    return orders.reduce((acc, order) => {
+      const items = Array.isArray(order.items) ? order.items : [];
+      const orderEarnings = items.reduce((itemAcc, item: any) => {
+        if (vendorId && item?.vendorId !== vendorId && item?.vendor?.id !== vendorId) {
+          return itemAcc;
+        }
+        // Directly maps to safeorder[0].items[0].vendorEarnings
+        const earnings = Number(item?.vendorEarnings) || 0;
+        return itemAcc + earnings;
+      }, 0);
+      return acc + orderEarnings;
+    }, 0);
   },
 }));
