@@ -97,7 +97,7 @@ interface VendorState {
   
   initSocketListeners: () => void;
   disconnectSocket: () => void;
-
+   setSelectedVendor: (vendor: ApiVendor | null) => void;
   addVendor: () => Promise<void>;
   updateVendor: (id: string) => Promise<void>;
   removeVendor: (id: string) => Promise<void>;
@@ -132,12 +132,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
   isEditing: null,
   formData: {
-    name: "",
-    email: "",
     phone: "",
     storeName: "",
     description: "",
-    businessDescription: "",
+    address:"",
     logoUrl: "",
     isActive: true,
   },
@@ -208,10 +206,19 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     }
   },
 
-  fetchStorefrontMetrics: async () => {
+fetchStorefrontMetrics: async () => {
     try {
-      const data = await vendorService.getStorefrontMetrics();
-      set({ stats: data });
+      const response = await vendorService.getStorefrontMetrics();
+      // Handle Axios response wrappers or direct data payloads securely
+      const metricsData = response;
+      
+      set({ 
+        stats: {
+          revenue: Number(metricsData?.revenue || 0),
+          activeOrders: Number(metricsData?.activeOrders || 0),
+          productCount: Number(metricsData?.productCount || get().vendors.length || 0),
+        } 
+      });
     } catch (error) {
       console.error("Failed to fetch storefront metrics", error);
     }
@@ -324,11 +331,9 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       set({
         isEditing: vendor,
         formData: {
-          name: vendor.name,
-          email: vendor.email,
           phone: vendor.phone || "",
           description: vendor.description || "",
-          businessDescription: vendor.businessDescription || "",
+          address:vendor.address || "",
           storeName: vendor.storeName,
           logoUrl: vendor.logoUrl || "",
           isActive: vendor.isActive,
@@ -338,18 +343,18 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       set({
         isEditing: null,
         formData: {
-          name: "",
-          email: "",
           phone: "",
           storeName: "",
           description: "",
-          businessDescription: "",
+          address:"",
           logoUrl: "",
           isActive: true,
         }
       });
     }
   },
+
+  setSelectedVendor: (vendor) => set({ selectedVendor: vendor }),
 
   initSocketListeners: () => {
     if (socket.hasListeners && socket.hasListeners('vendor:request-created')) return;
@@ -409,34 +414,38 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     socket.off('vendorDeleted');
     socket.off('vendorCreated');
   },
-
-  addVendor: async () => {
+addVendor: async () => {
     const { formData, fetchVendors } = get();
-    if (!formData.name.trim() || !formData.storeName.trim()) {
-      throw new Error("Vendor name and Store title are strictly required parameters.");
+    if (!formData.storeName?.trim()) {
+      throw new Error("Vendor Store name is strictly required parameters.");
     }
 
     set({ isLoading: true });
     try {
       await vendorService.createVendor(formData);
-      set({ isEditing: null });
+      set({ isEditing: null, formData: {} }); // Clear form data bundle on success if desired
       await fetchVendors();
     } catch (err: any) {
-      set({ isLoading: false });
       throw err;
+    } finally {
+      set({ isLoading: false }); // Guarantees loading state is always cleared
     }
   },
 
-  updateVendor: async (id) => {
+ updateVendor: async (id) => {
     const { formData, fetchVendors } = get();
     set({ isLoading: true });
     try {
       await vendorService.updateVendor(id, formData);
-      set({ isEditing: null });
+      set({ 
+        isEditing: null, 
+        formData: { storeName: "", phone: "", address: "", description: "", isActive: true } // Reset to clean defaults
+      });
       await fetchVendors();
     } catch (err: any) {
-      set({ isLoading: false });
       throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 

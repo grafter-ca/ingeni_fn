@@ -2,7 +2,7 @@
 import { memo, useEffect } from "react";
 import { VendorManagement } from "../../../features/admin/vendors/VendorManagement";
 import { useVendorStore } from "../../../store/vendorStore";
-import { Store, UserCheck, TrendingUp, Package, ShieldCheck } from "lucide-react";
+import { Store, UserCheck, TrendingUp, Package, ShieldCheck, RefreshCw } from "lucide-react";
 
 const AdminVendorPage = () => {
   const vendors = useVendorStore((state) => state.vendors);
@@ -10,16 +10,37 @@ const AdminVendorPage = () => {
   const error = useVendorStore((state) => state.error);
   const stats = useVendorStore((state) => state.stats);
   const pendingRequests = useVendorStore((state) => state.pendingRequests);
+
+  
+  // Store actions
+  const fetchVendors = useVendorStore((state) => state.fetchVendors);
   const fetchPendingRequests = useVendorStore((state) => state.fetchPendingRequests);
   const fetchStorefrontMetrics = useVendorStore((state) => state.fetchStorefrontMetrics);
+  const initSocketListeners = useVendorStore((state) => state.initSocketListeners);
+  const disconnectSocket = useVendorStore((state) => state.disconnectSocket);
 
   useEffect(() => {
+    // Initial data fetch coordination
+    fetchVendors();
     fetchPendingRequests();
     fetchStorefrontMetrics();
-  }, [fetchPendingRequests, fetchStorefrontMetrics]);
+
+    // Bind real-time socket updates
+    initSocketListeners();
+
+    return () => {
+      disconnectSocket();
+    };
+  }, [fetchVendors, fetchPendingRequests, fetchStorefrontMetrics, initSocketListeners, disconnectSocket]);
+
+  const handleManualRefresh = () => {
+    fetchVendors();
+    fetchPendingRequests();
+    fetchStorefrontMetrics();
+  };
 
   return (
-    <div className="min-h-screen bg-[#050505] p-6 lg:p-8 text-white max-w-[1440px] mx-auto space-y-8">
+    <div className="min-h-screen bg-[#050505] p-6 lg:p-8 text-white max-w-360 mx-auto space-y-8">
       {/* Header Section */}
       <header className="border-b border-white/10 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -30,6 +51,15 @@ const AdminVendorPage = () => {
             Manage store onboarding requests, review merchant verification parameters, monitor operational metrics, and control fulfillment performance.
           </p>
         </div>
+
+        <button
+          onClick={handleManualRefresh}
+          disabled={isLoading}
+          className="flex items-center gap-2 self-start md:self-auto bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-2.5 rounded-2xl border border-white/10 transition-all text-xs font-semibold disabled:opacity-50"
+        >
+          <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-400" : ""} />
+          {isLoading ? "Synchronizing..." : "Refresh Ecosystem"}
+        </button>
       </header>
 
       {error && (
@@ -41,7 +71,7 @@ const AdminVendorPage = () => {
       {/* Main Balanced Grid Layout */}
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Main Workspace Section */}
-        <section className="lg:col-span-8 bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 shadow-xl min-h-[600px]">
+        <section className="lg:col-span-8 bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 shadow-xl min-h-150">
           <VendorManagement />
         </section>
 
@@ -53,40 +83,42 @@ const AdminVendorPage = () => {
             </h3>
 
             <div className="space-y-3 text-xs">
-              <div className="flex justify-between items-center bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-3.5 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <Store size={14} className="text-blue-400" /> Total Active Vendors
                 </span>
-                <span className="font-bold text-white text-sm">{vendors.length}</span>
+                <span className="font-bold text-white text-sm">
+                  {vendors.filter((v) => v.isActive).length} <span className="text-gray-500 font-normal">/ {vendors.length}</span>
+                </span>
               </div>
 
-              <div className="flex justify-between items-center bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-3.5 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <UserCheck size={14} className="text-amber-400" /> Pending Requests
                 </span>
                 <span className="font-bold text-amber-400 text-sm">{pendingRequests.length}</span>
               </div>
 
-              <div className="flex justify-between items-center bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-3.5 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 font-medium">Ecosystem Revenue</span>
                 <span className="font-bold text-white text-sm">
-                  {stats?.revenue?.toLocaleString() ?? "0"} RWF
+                  {stats?.revenue ? Number(stats.revenue).toLocaleString() : "0"} RWF
                 </span>
               </div>
 
-              <div className="flex justify-between items-center bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-3.5 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <Package size={14} className="text-indigo-400" /> Pending Orders
                 </span>
                 <span className="font-bold text-white text-sm">{stats?.activeOrders ?? 0}</span>
               </div>
 
-              <div className="flex justify-between items-center bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-3.5 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 font-medium">Total Products Listed</span>
-                <span className="font-bold text-white text-sm">{stats?.productCount ?? vendors.length}</span>
+                <span className="font-bold text-white text-sm">{stats?.productCount ?? 0}</span>
               </div>
 
-              <div className="flex justify-between items-center bg-white/[0.02] p-3.5 rounded-2xl border border-white/5 pt-3.5 mt-2">
+              <div className="flex justify-between items-center bg-white/2 p-3.5 rounded-2xl border border-white/5 pt-3.5 mt-2">
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <ShieldCheck size={14} className="text-green-400" /> System Status
                 </span>

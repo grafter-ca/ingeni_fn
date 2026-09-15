@@ -86,14 +86,15 @@ export type AuthAction =
 // Define the core structures for data type safety
 export interface ApiVendor {
   id: string;
-  name: string;
-  email: string;
+  name?: string;
+  email?: string;
   phone?: string;
   logoUrl?: string;
   storeName: string;
   isActive: boolean;
   businessDescription?: string;
   description?: string;
+  address?:string;
   createdAt: string;
   _count?: {
     products: number;

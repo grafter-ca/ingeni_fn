@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const LOCAL_BASE = "https://ingeri-api.onrender.com";
+const LOCAL_BASE = "http://localhost:8000";
 
 
 // Connect directly to your NestJS backend socket namespace

@@ -21,8 +21,8 @@ export const productService = {
   /**
    * FETCH PRODUCTS (Routes through public endpoint to prevent 401 unauthorized errors)
    */
- /**
-   * FETCH PRODUCTS (Attempts protected route first, falls back to public endpoint)
+/**
+   * FETCH PRODUCTS (Attempts public route first, falls back to protected endpoint)
    */
   getProducts: async (filters: ProductFilters & { categoryId?: string; vendorId?: string } = {}): Promise<ApiProduct[]> => {
     const params = new URLSearchParams();
@@ -49,17 +49,22 @@ export const productService = {
     const query = `?${params.toString()}`;
 
     try {
-      // Try hitting the protected endpoint first so it passes proper vendor/auth tokens
-      const response = await localApi.get<ApiProduct[]>(`/products${query}`);
+      // Try hitting the public endpoint first using the exact query string
+      const response = await localApi.get<ApiProduct[]>(`/products/public${query}`);
       const items = extractArray<ApiProduct>(response);
       return items.map((p) => ({
         ...p,
         id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
       }));
     } catch (err: any) {
-      // Fallback to public endpoint if unauthorized or forbidden
+      // Fallback to the protected endpoint if unauthorized or forbidden
       if (err?.response?.status === 401 || err?.response?.status === 403 || err?.status === 401 || err?.status === 403) {
-        return productService.getProductsPublic(filters);
+        const response = await localApi.get<ApiProduct[]>(`/products${query}`);
+        const items = extractArray<ApiProduct>(response);
+        return items.map((p) => ({
+          ...p,
+          id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
+        }));
       }
       throw err;
     }
@@ -106,7 +111,7 @@ export const productService = {
   getProduct: async (id: string | number): Promise<ApiProduct> => {
     const idStr = String(id);
     const realId = idStr.replace("local-", "");
-    return await localApi.get<ApiProduct>(`/products/${realId}`);
+    return await localApi.get<ApiProduct>(`/products/public/${realId}`);
   },
 
   /**
