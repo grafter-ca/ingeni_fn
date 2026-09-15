@@ -16,7 +16,7 @@ export const authClient = createAuthClient({
         lastLoginMethodClient(),
     ],
     fetchOptions: {
-        credentials: "include", // Important for cookie-based sessions
+        credentials: "include",
     },
      // Custom fields that your backend expects in the session user object
     session: {
