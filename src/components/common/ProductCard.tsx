@@ -48,6 +48,15 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
 
   const resolvedVendorId = product.vendorId || product.vendor?.id;
 
+  // Check if product was created within the last 7 days
+  const isNewProduct = (() => {
+    const createdAtField = product.createdAt || (product as any).created_at;
+    if (!createdAtField) return false;
+    const createdDate = new Date(createdAtField).getTime();
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - createdDate < sevenDaysInMs;
+  })();
+
   const handleAdd = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -94,8 +103,8 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
 
   return (
     <motion.section
-      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-300/20 hover:shadow-blue-600/10 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full select-none"
-      whileHover={{ y: -0.5 }}
+      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/5 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full select-none"
+      whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       onClick={() => navigate(`/products/${product.id}`)}
     >
@@ -114,9 +123,9 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
             whileTap={{ scale: 0.9 }}
             onClick={handleToggleWishlist}
             disabled={isWishloading}
-            className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full backdrop-blur-md flex items-center justify-center shadow-md transition-colors z-10 ${
+            className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full backdrop-blur-md flex items-center justify-center shadow-md transition-colors z-10 cursor-pointer ${
               isWishlisted
-                ? "bg-red-500 text-white"
+                ? "bg-rose-500 text-white"
                 : "bg-black/40 text-white hover:bg-black/60"
             }`}
             title={isWishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
@@ -130,7 +139,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={handleAdd}
-            className="w-9 h-9 sm:w-11 sm:h-11 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-500 transition-colors"
+            className="w-9 h-9 sm:w-11 sm:h-11 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-500 transition-colors cursor-pointer"
             title="Add to Cart"
           >
             <ShoppingCart size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -140,44 +149,40 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={handleQuickView}
-            className="w-9 h-9 sm:w-11 sm:h-11 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl flex items-center justify-center shadow-lg hover:bg-white/20 transition-colors"
+            className="w-9 h-9 sm:w-11 sm:h-11 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl flex items-center justify-center shadow-lg hover:bg-white/20 transition-colors cursor-pointer"
             title="Quick View"
           >
             <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
           </motion.button>
         </article>
 
-        <article className="absolute top-2.5 left-2.5">
-          <span
-            className={`text-[9px] font-mono px-2 py-0.5 rounded-full backdrop-blur-md border shadow-md ${
-              product.stock > 0
-                ? "bg-black/70 text-emerald-400 border-emerald-500/30"
-                : "bg-black/70 text-red-400 border-red-500/30"
-            }`}
-          >
-            {product.stock > 0 ? `${product.stock} left` : "Out of stock"}
-          </span>
-        </article>
+        {isNewProduct && (
+          <article className="absolute top-2.5 left-2.5">
+            <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full backdrop-blur-md border shadow-md bg-black/70 text-blue-400 border-blue-500/30">
+              New Drop
+            </span>
+          </article>
+        )}
       </section>
 
       {/* ── 2. Card Information Body ── */}
       <section className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-2.5">
         <article className="space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest truncate max-w-[65%]">
-              {product.category?.name || "General"}
+            <span className="text-[9px] sm:text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] truncate max-w-[65%]">
+              {product.category?.name || "General Matrix"}
             </span>
 
-            <div className="flex items-center gap-1 text-amber-500 font-mono text-[10px] shrink-0">
+            <div className="flex items-center gap-1 text-amber-500 font-mono text-[10px] shrink-0 font-bold">
               <Star size={12} className="fill-current" />
               <span>{Number(averageRating).toFixed(1)}</span>
               {reviewCount > 0 && (
-                <span className="text-zinc-400">({reviewCount})</span>
+                <span className="text-zinc-400 dark:text-gray-500">({reviewCount})</span>
               )}
             </div>
           </div>
 
-          <h3 className="font-semibold text-zinc-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          <h3 className="font-mono font-semibold text-zinc-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
             {product.title}
           </h3>
         </article>
@@ -192,7 +197,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
 
           <div className="flex items-center gap-1.5 text-zinc-500 dark:text-gray-500">
             <MapPin size={12} className="shrink-0" />
-            <span className="text-[10px] uppercase tracking-wider truncate">
+            <span className="text-[10px] font-mono uppercase tracking-wider truncate">
               {product.location || "Kigali, Rwanda"}
             </span>
           </div>
@@ -204,7 +209,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
                 to={cleanPhone}
                 productId={product.id}
                 vendorId={resolvedVendorId}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-mono"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-mono cursor-pointer"
               >
                 <MessageCircle size={10} />
                 WhatsApp
@@ -215,7 +220,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
                 to={cleanPhone}
                 productId={product.id}
                 vendorId={resolvedVendorId}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all text-[9px] font-mono"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all text-[9px] font-mono cursor-pointer"
               >
                 <Phone size={10} />
                 Call
@@ -227,19 +232,19 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
         {/* ── 3. Footer: Price & Stock ── */}
         <article className="pt-2 flex items-center justify-between border-t border-zinc-200 dark:border-white/5 mt-auto">
           <div>
-            <span className="text-[9px] text-zinc-500 dark:text-gray-500 uppercase tracking-widest block">
-              Price
+            <span className="text-[9px] font-mono text-zinc-500 dark:text-gray-500 uppercase tracking-[0.2em] block">
+              Unit Price
             </span>
-            <p className="font-mono font-bold text-zinc-900 dark:text-white text-sm sm:text-base">
+            <p className="font-mono font-bold text-zinc-900 dark:text-white text-sm sm:text-base tracking-tight">
               RWF {Number(product.price).toLocaleString()}
             </p>
           </div>
 
           <div
-            className={`text-[9px] sm:text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+            className={`text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
               product.stock > 0
                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
             }`}
           >
             {product.stock > 0 ? `${product.stock} in stock` : "Sold Out"}

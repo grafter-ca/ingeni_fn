@@ -1,6 +1,7 @@
 // components/vendor/ProductManagement.tsx
 import { useState, useEffect, useRef } from "react";
 import { Package, Plus, Search, Trash2, Edit3, Upload, X, Loader2, MapPin, Store, ShieldCheck, User } from "lucide-react";
+import { useVendorStore } from "../../store/vendorStore";
 import { useProductStore } from "../../store/productStore";
 import Button from "../../components/ui/Button";
 import { useAuthState } from "../../context/AuthContext";
@@ -8,10 +9,14 @@ import { toast } from "react-hot-toast";
 
 export const ProductManagement = () => {
   const { 
+    stats, 
+    fetchVendorDashboardData 
+  } = useVendorStore();
+
+  const { 
     filteredProducts, 
     categories, 
     fetchCategories, 
-    fetchProducts,
     fetchVendorProducts, 
     setSelectedVendorId,
     addProduct, 
@@ -35,16 +40,15 @@ export const ProductManagement = () => {
 
   const vendorId = user?.id || "";
 
-  // Sync vendor context and fetch initial data on mount or when vendorId changes
+  // Sync vendor context, dashboard telemetry stats, and product catalog on mount
   useEffect(() => {
     fetchCategories();
     if (vendorId) {
       setSelectedVendorId(vendorId);
       fetchVendorProducts(vendorId);
-    } else {
-      fetchProducts();
+      fetchVendorDashboardData();
     }
-  }, [vendorId, fetchCategories, fetchVendorProducts, setSelectedVendorId, fetchProducts]);
+  }, [vendorId, fetchCategories, fetchVendorProducts, setSelectedVendorId, fetchVendorDashboardData]);
 
   // Form State
   const [form, setForm] = useState({
@@ -196,6 +200,7 @@ export const ProductManagement = () => {
       setIsModalOpen(false);
       if (vendorId) {
         fetchVendorProducts(vendorId);
+        fetchVendorDashboardData();
       }
     } catch (error: any) {
       toast.error(error?.message || "Operation failed. Please verify your inputs.");
@@ -212,6 +217,7 @@ export const ProductManagement = () => {
         toast.success("Product deleted successfully.");
         if (vendorId) {
           fetchVendorProducts(vendorId);
+          fetchVendorDashboardData();
         }
       } catch (error) {
         toast.error("Failed to delete product.");
@@ -229,7 +235,7 @@ export const ProductManagement = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* Vendor Info Banner Card */}
+      {/* Vendor Info Banner Card using VendorStore stats */}
       <div className="p-5 rounded-3xl bg-gradient-to-r from-blue-950/40 via-[#0c0c0e] to-[#0c0c0e] border border-blue-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
@@ -250,10 +256,14 @@ export const ProductManagement = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 sm:border-l sm:border-white/10 sm:pl-6">
+        <div className="flex items-center gap-6 sm:border-l sm:border-white/10 sm:pl-6">
           <div className="font-mono text-right">
-            <p className="text-[10px] uppercase text-gray-500">Total Products</p>
-            <p className="text-sm font-bold text-white">{displayedProducts.length}</p>
+            <p className="text-[10px] uppercase text-gray-500">Catalog Count</p>
+            <p className="text-sm font-bold text-white">{stats?.productCount ?? displayedProducts.length}</p>
+          </div>
+          <div className="font-mono text-right">
+            <p className="text-[10px] uppercase text-gray-500">Active Orders</p>
+            <p className="text-sm font-bold text-blue-400">{stats?.activeOrders ?? 0}</p>
           </div>
         </div>
       </div>

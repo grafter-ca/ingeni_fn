@@ -3,32 +3,66 @@ import { useEffect } from "react";
 import { Package, ShoppingCart, DollarSign, TrendingUp, ArrowUpRight, Clock, CheckCircle2 } from "lucide-react";
 import { useOrderStore } from "../../store/useOrderStore";
 import { useProductStore } from "../../store/productStore";
+import { useAuthState } from "../../context/AuthContext";
+import { useVendorStore } from "../../store/vendorStore"; 
 
 export const VendorOverview = () => {
   const { orders, fetchVendorOrders } = useOrderStore();
   const { products, fetchVendorProducts } = useProductStore();
+  const { user } = useAuthState();
+  const { selectedVendor, fetchVendorDashboardData, fetchVendorById } = useVendorStore(); 
 
-  // Fetch orders and products on mount to guarantee fresh metrics
+  const userId = user?.id;
+  const vendorId = selectedVendor?.id;
+
+  // Fetch orders, products, and vendor profile/dashboard data when userId is present
   useEffect(() => {
     fetchVendorOrders();
-    fetchVendorProducts();
-  }, [fetchVendorOrders, fetchVendorProducts]);
+    fetchVendorProducts(vendorId);
+    fetchVendorDashboardData();
+    if (userId) {
+      fetchVendorById(userId);
+    }
+  }, [userId, vendorId, fetchVendorOrders, fetchVendorProducts, fetchVendorDashboardData, fetchVendorById]);
 
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const safeProducts = Array.isArray(products) ? products : [];
+  
+  // Ensure we safely match products whether they use vendorId, storeId, or nested vendor object
+  const safeProducts = Array.isArray(products) 
+    ? products.filter(product => {
+        if (!vendorId) return true;
+        const pVendorId = product.vendorId || product.vendor?.id;
+        return pVendorId === vendorId;
+      }) 
+    : [];
 
-  // Calculate total revenue dynamically from delivered/completed orders
+  // Calculate total gross revenue dynamically from orders (ensure numeric addition)
   const totalRevenue = safeOrders.reduce((acc, order) => {
-    return acc + (order.totalAmount || 0);
+    const amount = Number(order.totalAmount) || 0;
+    return acc + amount;
+  }, 0);
+
+  // Calculate total net vendor earnings safely from order items array
+  const totalEarnings = safeOrders.reduce((acc, order) => {
+    const firstItem = order.items?.[0];
+    const earnings = Number(firstItem?.vendorEarnings) || 0;
+    return acc + earnings;
   }, 0);
 
   const pendingOrdersCount = safeOrders.filter(o => o.status === 'PENDING').length;
 
   const statCards = [
     {
-      label: "Total Revenue",
+      label: "Gross Sales/Revenue",
       value: `RWF ${totalRevenue.toLocaleString()}`,
       change: "Active marketplace pool",
+      icon: DollarSign,
+      color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    },
+    {
+      label: "Total Sales",
+      value: `RWF ${totalEarnings.toLocaleString()}`,
+      change: "Active Vendor earnings after tax",
       icon: DollarSign,
       color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
     },
@@ -50,7 +84,6 @@ export const VendorOverview = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      
       {/* Welcome Banner */}
       <div className="p-8 rounded-3xl bg-gradient-to-r from-blue-900/40 via-[#0c0c0e] to-[#0c0c0e] border border-white/10 relative overflow-hidden shadow-2xl">
         <div className="absolute right-0 top-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -60,7 +93,7 @@ export const VendorOverview = () => {
             <span>Storefront Telemetry Active</span>
           </div>
           <h1 className="font-poppins font-bold text-2xl md:text-4xl text-white tracking-tight mb-2">
-            Welcome back, Vendor
+            Welcome back, {selectedVendor?.storeName || user?.name || 'Vendor'}
           </h1>
           <p className="font-mono text-xs text-gray-400 leading-relaxed">
             Monitor your real-time store performance metrics, manage catalog listings, and keep track of live customer shipments directly from your dashboard.
@@ -103,7 +136,7 @@ export const VendorOverview = () => {
             <thead>
               <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase tracking-wider">
                 <th className="py-3 px-4">Order ID</th>
-                <th className="py-3 px-4">Customer</th>
+                <th className="py-3 px-4">Customer Contact</th>
                 <th className="py-3 px-4">Amount</th>
                 <th className="py-3 px-4">Status</th>
               </tr>
@@ -117,8 +150,8 @@ export const VendorOverview = () => {
                 safeOrders.slice(0, 5).map((order) => (
                   <tr key={order.id} className="hover:bg-white/[0.02] transition">
                     <td className="py-3.5 px-4 font-bold text-white">#{order.orderNumber}</td>
-                    <td className="py-3.5 px-4 text-gray-300">{order.user?.name || "Customer"}</td>
-                    <td className="py-3.5 px-4 text-blue-400">RWF {order.totalAmount?.toLocaleString()}</td>
+                    <td className="py-3.5 px-4 text-gray-300">{order.phoneNumber || "N/A"}</td>
+                    <td className="py-3.5 px-4 text-blue-400">RWF {Number(order.totalAmount || 0).toLocaleString()}</td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-semibold ${
                         order.status === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400' :
@@ -135,7 +168,6 @@ export const VendorOverview = () => {
           </table>
         </div>
       </div>
-
     </div>
   );
 };

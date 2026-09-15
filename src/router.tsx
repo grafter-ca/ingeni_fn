@@ -35,7 +35,7 @@ import AdminVendorRequests from "./features/admin/home/AdminVendorRequests";
 
 // Vendor Views
 import { VendorOverview } from "./features/vendor/VendorOverview";
-import { ProductManagement } from "./features/vendor/ProductManagement";
+import { VendorProduct } from "./features/vendor/VendorProduct";
 import { VendorOrdersView } from "./features/vendor/VendorOrdersView";
 import { VendorSettingsView } from "./features/vendor/VendorSettingsView";
 
@@ -45,6 +45,7 @@ import ProtectedRoute from "./components/common/ProtectedRoute";
 // Protocol Handler component we created above
 import { ProtocolHandler } from "./components/common/ProtocolHandler";
 import CategoriesPage from "./pages/CategoriesPage";
+import { VendorFinancials } from "./features/vendor/VendorFinancials";
 
 export const router = createBrowserRouter([
   // --- 1. STANDALONE AUTHENTICATION ROUTES ---
@@ -130,8 +131,9 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <VendorOverview /> },
-      { path: "products", element: <ProductManagement /> },
+      { path: "products", element: <VendorProduct /> },
       { path: "orders", element: <VendorOrdersView /> },
+      { path: "financials", element: <VendorFinancials /> },
       { path: "settings", element: <VendorSettingsView /> },
     ],
   },

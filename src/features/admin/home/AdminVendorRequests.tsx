@@ -226,10 +226,10 @@ export default function AdminVendorRequests() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-bold text-lg text-zinc-100 flex items-center gap-2">
-                        <User size={16} className="text-emerald-500" /> {req.user.name}
+                        <User size={16} className="text-emerald-500" /> {req.user.name || "Unnamed User"}
                       </h3>
                       <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
-                        <Mail size={12} /> {req.user.email}
+                        <Mail size={12} /> {req.user.email || "No email provided"}
                       </p>
                     </div>
                     <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1 bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-700">

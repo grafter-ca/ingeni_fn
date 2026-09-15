@@ -22,6 +22,17 @@ export interface VendorStats {
   productCount: number;
 }
 
+export interface AdminRequest {
+  id: string;
+  vendorId?: string;
+  type: string;
+  amount: string | null;
+  message: string;
+  status: string;
+  adminNotes?: string;
+  createdAt: string;
+}
+
 export interface OnboardingRequest {
   id: string;
   userId: string;
@@ -52,6 +63,11 @@ interface VendorState {
   isLoadingRequests: boolean;
   vendorSettings: any | null;
 
+  // Financial Ledger state
+  totalRevenue: number;
+  netBalance: number;
+  requests: AdminRequest[];
+
   searchQuery: string;
   statusFilter: "all" | "active" | "inactive";
 
@@ -61,6 +77,7 @@ interface VendorState {
 
   // Actions
   fetchVendors: (params?: any) => Promise<void>;
+  fetchVendorById: (id: string) => Promise<void>;
   fetchVendorDetails: (id: string) => Promise<void>;
   fetchPendingRequests: () => Promise<void>;
   fetchVendorDashboardData: () => Promise<void>;
@@ -68,6 +85,8 @@ interface VendorState {
   fetchVendorSettings: () => Promise<void>;
   updateVendorSettings: (payload: any) => Promise<void>;
   submitAdminRequest: (payload: { type: string; amount?: string; message: string }) => Promise<void>;
+  fetchVendorFinancials: (vendorId: string) => Promise<void>;
+  requestCashout: (vendorId: string, amount: string, phone: string) => Promise<void>;
 
   setSearchQuery: (query: string) => void;
   setStatusFilter: (status: "all" | "active" | "inactive") => void;
@@ -104,6 +123,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   isLoadingRequests: false,
   vendorSettings: null,
 
+  totalRevenue: 0,
+  netBalance: 0,
+  requests: [],
+
   searchQuery: "",
   statusFilter: "all",
 
@@ -128,6 +151,16 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       get().applyFilters();
     } catch (err: any) {
       set({ error: err.message || "Failed to load vendors catalog", isLoading: false });
+    }
+  },
+
+  fetchVendorById: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const vendor = await vendorService.getVendorById(id);
+      set({ selectedVendor: vendor, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.message || "Failed to load vendor details", isLoading: false });
     }
   },
 
@@ -164,7 +197,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       ]);
 
       const mappedStats: VendorStats = metricsData || {
-        revenue: ordersData.reduce((acc: number, curr: any) => curr.status === 'DELIVERED' ? acc + curr.totalAmount : acc, 0),
+        revenue: ordersData.reduce((acc: number, curr: any) => curr.status === 'DELIVERED' ? acc + Number(curr.totalAmount || 0) : acc, 0),
         activeOrders: ordersData.filter((o: any) => o.status === 'PENDING').length,
         productCount: get().vendors.length
       };
@@ -209,6 +242,44 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     try {
       await vendorService.submitAdminRequest(payload);
     } catch (err: any) {
+      throw err;
+    }
+  },
+
+  fetchVendorFinancials: async (vendorId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const data = await vendorService.getFinancials(vendorId);
+      set({
+        totalRevenue: data.totalRevenue,
+        netBalance: data.netBalance,
+        requests: data.requests,
+        isLoading: false,
+      });
+    } catch (err: any) {
+      console.error("Failed to fetch vendor financials:", err);
+      set({ error: err.message || "Failed to load financial records", isLoading: false });
+    }
+  },
+
+  requestCashout: async (vendorId: string, amount: string, phone: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      await vendorService.submitCashoutRequest(vendorId, {
+        type: 'CASHOUT',
+        amount,
+        message: `Cashout request to MoMo number: ${phone}`,
+      });
+      // Refresh financials after submitting request
+      const data = await vendorService.getFinancials(vendorId);
+      set({
+        totalRevenue: data.totalRevenue,
+        netBalance: data.netBalance,
+        requests: data.requests,
+        isLoading: false,
+      });
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message || "Failed to request cashout" });
       throw err;
     }
   },
@@ -440,7 +511,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
         const updatedStats = state.stats ? {
           ...state.stats,
-          revenue: updatedOrders.reduce((acc, curr) => curr.status === 'DELIVERED' ? acc + curr.totalAmount : acc, 0),
+          revenue: updatedOrders.reduce((acc, curr) => curr.status === 'DELIVERED' ? acc + Number(curr.totalAmount || 0) : acc, 0),
           activeOrders: updatedOrders.filter(o => o.status === 'PENDING').length
         } : null;
 

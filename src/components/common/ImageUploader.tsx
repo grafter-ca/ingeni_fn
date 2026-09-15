@@ -1,3 +1,4 @@
+// components/forms/ProductImageUploader.tsx
 import { Upload, X, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -81,7 +82,7 @@ export const ProductImageUploader = ({
             <button
               type="button"
               onClick={() => removeFile(index)}
-              className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
             >
               <X size={16} className="text-white" />
             </button>

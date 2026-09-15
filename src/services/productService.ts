@@ -21,8 +21,48 @@ export const productService = {
   /**
    * FETCH PRODUCTS (Routes through public endpoint to prevent 401 unauthorized errors)
    */
+ /**
+   * FETCH PRODUCTS (Attempts protected route first, falls back to public endpoint)
+   */
   getProducts: async (filters: ProductFilters & { categoryId?: string; vendorId?: string } = {}): Promise<ApiProduct[]> => {
-    return productService.getProductsPublic(filters);
+    const params = new URLSearchParams();
+
+    if (filters.title) params.append("title", filters.title);
+    if (filters.categoryName) params.append("categoryName", filters.categoryName);
+
+    if (filters.categoryId) {
+      const cleanCatId = String(filters.categoryId).replace(/^local-/, "");
+      params.append("categoryId", cleanCatId);
+    }
+
+    if (filters.vendorId) {
+      const cleanVendorId = String(filters.vendorId).replace(/^local-/, "");
+      params.append("vendorId", cleanVendorId);
+    }
+
+    if (filters.price_min) params.append("price_min", String(filters.price_min));
+    if (filters.price_max) params.append("price_max", String(filters.price_max));
+    
+    params.append("limit", String(filters.limit ?? 20));
+    params.append("offset", String(filters.offset ?? 0));
+
+    const query = `?${params.toString()}`;
+
+    try {
+      // Try hitting the protected endpoint first so it passes proper vendor/auth tokens
+      const response = await localApi.get<ApiProduct[]>(`/products${query}`);
+      const items = extractArray<ApiProduct>(response);
+      return items.map((p) => ({
+        ...p,
+        id: String(p.id).startsWith("local-") ? String(p.id) : `local-${p.id}`,
+      }));
+    } catch (err: any) {
+      // Fallback to public endpoint if unauthorized or forbidden
+      if (err?.response?.status === 401 || err?.response?.status === 403 || err?.status === 401 || err?.status === 403) {
+        return productService.getProductsPublic(filters);
+      }
+      throw err;
+    }
   },
 
   /**
@@ -72,6 +112,7 @@ export const productService = {
   /**
    * CREATE PRODUCT
    */
+ // src/services/productService.ts
   createProduct: async (data: FormData): Promise<ApiProduct> => {
     return await localApi.post<ApiProduct>(`/products`, data);
   },

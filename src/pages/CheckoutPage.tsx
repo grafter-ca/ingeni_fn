@@ -114,8 +114,6 @@ const CheckoutPage = () => {
 
       const order = await createOrder(payload);
 
-      console.log("Multi-vendor order created successfully:", order, "with payload:", payload);
-
       clearCart();
       navigate(`/order-success/${order.orderNumber || order.id}`);
     } catch (err) {

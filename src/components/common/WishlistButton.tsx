@@ -10,7 +10,7 @@ interface WishlistButtonProps {
 }
 
 export default function WishlistButton({
-  productId,
+  // productId,
   initialState = false,
   onToggle,
   size = 18,
@@ -26,11 +26,7 @@ export default function WishlistButton({
     // Trigger parent callback or execute backend mutation here
     if (onToggle) {
       onToggle(nextState);
-    }
-
-    // Using productId here resolves the TS6133 unused variable error:
-    console.log(`Toggling wishlist for product ID: ${productId}, State: ${nextState}`);
-    
+    }    
     // Example API hook call:
     // await productService.toggleWishlist(productId, nextState);
   };
