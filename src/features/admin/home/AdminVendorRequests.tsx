@@ -15,33 +15,25 @@ import {
   CheckCircle
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useVendorStore, type OnboardingRequest, type AdminRequest } from "../../../store/vendorStore";
 import { localApi } from "../../../libs/api";
-
-interface OnboardingRequest {
-  id: string;
-  user: { id: string; name: string; email: string };
-  businessDescription: string;
-  submittedAt: string;
-}
-
-interface AdminRequest {
-  id: string;
-  vendorId: string;
-  type: string;
-  amount?: string;
-  message: string;
-  status: string;
-  adminNotes?: string;
-  createdAt: string;
-  vendor?: { storeName: string; phone?: string };
-}
 
 export default function AdminVendorRequests() {
   const [activeTab, setActiveTab] = useState<"onboarding" | "inquiries">("onboarding");
-  const [onboardingRequests, setOnboardingRequests] = useState<OnboardingRequest[]>([]);
-  const [adminQueries, setAdminQueries] = useState<AdminRequest[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pull store states and actions
+  const { 
+    pendingRequests: onboardingRequests, 
+    fetchPendingRequests, 
+    approveVendorRequest, 
+    rejectVendorRequest,
+    isLoading: storeLoading,
+    isLoadingRequests
+  } = useVendorStore();
+
+  const [adminQueries, setAdminQueries] = useState<AdminRequest[]>([]);
+  const [loadingQueries, setLoadingQueries] = useState(false);
 
   // Approval Modal State
   const [selectedRequest, setSelectedRequest] = useState<OnboardingRequest | null>(null);
@@ -58,22 +50,19 @@ export default function AdminVendorRequests() {
   const [replyStatus, setReplyStatus] = useState("RESOLVED");
 
   const fetchData = async () => {
-    setLoading(true);
     setError(null);
+    setLoadingQueries(true);
     try {
-      const requests = await localApi.get<OnboardingRequest[]>("/vendors/requests");
-      setOnboardingRequests(requests || []);
+      // Fetch onboarding requests via Zustand store
+      await fetchPendingRequests();
 
-      try {
-        const queries = await localApi.get<AdminRequest[]>("/vendors/admin-requests");
-        setAdminQueries(queries || []);
-      } catch {
-        setAdminQueries([]);
-      }
+      // Fetch admin queries/support requests safely ensuring an array fallback
+      const queries = await localApi.get<AdminRequest[]>("/vendors/admin-requests");
+      setAdminQueries(Array.isArray(queries) ? queries : (queries as any)?.data || []);
     } catch (err: any) {
       setError(err?.message || "Failed to load vendor requests.");
     } finally {
-      setLoading(false);
+      setLoadingQueries(false);
     }
   };
 
@@ -84,8 +73,8 @@ export default function AdminVendorRequests() {
   const handleOpenApproveModal = (req: OnboardingRequest) => {
     setSelectedRequest(req);
     setFormData({
-      storeName: `${req.user.name}'s Store`,
-      description: req.businessDescription,
+      storeName: `${req.user?.name || "Merchant"}'s Store`,
+      description: req.businessDescription || req.description || "",
       address: "Kigali, Rwanda",
       phone: "+2507",
     });
@@ -93,10 +82,10 @@ export default function AdminVendorRequests() {
 
   const handleApproveOnboarding = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRequest) return;
+    if (!selectedRequest || !selectedRequest.user?.id) return;
 
     try {
-      await localApi.post("/vendors/requests/approve", {
+      await approveVendorRequest({
         userId: selectedRequest.user.id,
         ...formData,
       });
@@ -111,7 +100,7 @@ export default function AdminVendorRequests() {
   const handleRejectOnboarding = async (requestId: string) => {
     if (!window.confirm("Are you sure you want to reject this vendor application?")) return;
     try {
-      await localApi.delete(`/vendors/requests/${requestId}`);
+      await rejectVendorRequest(requestId);
       toast.success("Vendor request rejected.");
       void fetchData();
     } catch (err: any) {
@@ -137,7 +126,6 @@ export default function AdminVendorRequests() {
     }
   };
 
-  // Quick Status Update Handler from Card Dropdown
   const handleQuickStatusChange = async (queryId: string, newStatus: string) => {
     try {
       await localApi.patch(`/vendors/admin-requests/${queryId}`, {
@@ -160,6 +148,8 @@ export default function AdminVendorRequests() {
       toast.error(err?.message || "Failed to delete query.");
     }
   };
+
+  const isLoading = storeLoading || isLoadingRequests || loadingQueries;
 
   return (
     <div className="p-6 max-w-7xl mx-auto min-h-screen text-zinc-100">
@@ -185,7 +175,7 @@ export default function AdminVendorRequests() {
               : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
           }`}
         >
-          Onboarding Applications ({onboardingRequests.length})
+          Onboarding Applications ({Array.isArray(onboardingRequests) ? onboardingRequests.length : 0})
         </button>
         <button
           onClick={() => setActiveTab("inquiries")}
@@ -195,7 +185,7 @@ export default function AdminVendorRequests() {
               : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
           }`}
         >
-          Vendor Support & Cashouts ({adminQueries.length})
+          Vendor Support & Cashouts ({Array.isArray(adminQueries) ? adminQueries.length : 0})
         </button>
       </div>
 
@@ -206,14 +196,14 @@ export default function AdminVendorRequests() {
       )}
 
       {/* Content Area */}
-      {loading ? (
+      {isLoading ? (
         <div className="p-20 flex flex-col items-center justify-center text-zinc-500 gap-3">
           <Loader2 className="animate-spin text-emerald-500" size={36} />
           <p className="text-sm font-medium text-zinc-400">Loading requests queue...</p>
         </div>
       ) : activeTab === "onboarding" ? (
         // --- ONBOARDING QUEUE ---
-        onboardingRequests.length === 0 ? (
+        !Array.isArray(onboardingRequests) || onboardingRequests.length === 0 ? (
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-16 text-center text-zinc-500">
             <CheckCircle2 className="mx-auto text-emerald-500 mb-3" size={48} />
             <p className="text-sm font-medium text-zinc-300">No pending vendor onboarding applications.</p>
@@ -226,20 +216,22 @@ export default function AdminVendorRequests() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-bold text-lg text-zinc-100 flex items-center gap-2">
-                        <User size={16} className="text-emerald-500" /> {req.user.name || "Unnamed User"}
+                        <User size={16} className="text-emerald-500" /> {req.user?.name || "Unnamed User"}
                       </h3>
                       <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
-                        <Mail size={12} /> {req.user.email || "No email provided"}
+                        <Mail size={12} /> {req.user?.email || "No email provided"}
                       </p>
                     </div>
-                    <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1 bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-700">
-                      <Calendar size={10} /> {new Date(req.submittedAt).toLocaleDateString()}
-                    </span>
+                    {req.submittedAt && (
+                      <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1 bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-700">
+                        <Calendar size={10} /> {new Date(req.submittedAt).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
 
                   <div className="bg-zinc-950/50 border border-zinc-800/80 p-4 rounded-2xl">
                     <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Business Concept / Pitch:</p>
-                    <p className="text-sm text-zinc-300 leading-relaxed italic">"{req.businessDescription}"</p>
+                    <p className="text-sm text-zinc-300 leading-relaxed italic">"{req.businessDescription || req.description || "No pitch provided"}"</p>
                   </div>
                 </div>
 
@@ -263,7 +255,7 @@ export default function AdminVendorRequests() {
         )
       ) : (
         // --- VENDOR SUPPORT & CASHOUT QUERIES ---
-        adminQueries.length === 0 ? (
+        !Array.isArray(adminQueries) || adminQueries.length === 0 ? (
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-16 text-center text-zinc-500">
             <MessageSquare className="mx-auto text-zinc-600 mb-3" size={48} />
             <p className="text-sm font-medium text-zinc-300">No active vendor support queries or cashout requests found.</p>
@@ -282,7 +274,6 @@ export default function AdminVendorRequests() {
                         <DollarSign size={12} /> RWF {Number(query.amount).toLocaleString()}
                       </span>
                     )}
-                    {/* Inline Quick Status Selector */}
                     <select
                       value={query.status}
                       onChange={(e) => void handleQuickStatusChange(query.id, e.target.value)}
@@ -303,9 +294,10 @@ export default function AdminVendorRequests() {
                     </select>
                   </div>
                   <p className="text-sm text-zinc-200 font-medium">{query.message}</p>
-                  <p className="text-xs text-zinc-500">Submitted by Store ID: <span className="font-mono">{query.vendorId}</span></p>
+                  {query.vendorId && (
+                    <p className="text-xs text-zinc-500">Store ID: <span className="font-mono">{query.vendorId}</span></p>
+                  )}
 
-                  {/* Display Admin's Response Note if available */}
                   {query.adminNotes && (
                     <div className="mt-3 p-3.5 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl flex items-start gap-2.5">
                       <CheckCircle size={16} className="text-emerald-500 shrink-0 mt-0.5" />

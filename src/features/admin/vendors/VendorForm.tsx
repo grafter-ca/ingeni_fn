@@ -12,6 +12,8 @@ export const VendorForm = () => {
     e.preventDefault();
     setSubmitting(true);
     setErrorMessage(null);
+    
+    console.log("Submitting formData payload:", formData);
 
     try {
       if (isEditing && isEditing.id) {
@@ -19,8 +21,13 @@ export const VendorForm = () => {
       } else {
         await addVendor();
       }
+      // Successfully completed, reset form view/editing state
+      setEditingVendor(null);
     } catch (err: any) {
+      console.error("Vendor submission error:", err);
       setErrorMessage(err.message || "Failed to commit merchant configuration record.");
+    } finally {
+      // Always clear the submitting lock whether success or failure occurs
       setSubmitting(false);
     }
   };
@@ -30,6 +37,7 @@ export const VendorForm = () => {
       <div className="flex items-center justify-between border-b border-white/10 pb-4">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => setEditingVendor(null)}
             className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition-all cursor-pointer"
           >
@@ -61,33 +69,7 @@ export const VendorForm = () => {
               className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
             />
           </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Owner Full Name *</label>
-            <input
-              type="text"
-              required
-              value={formData.name ?? ""}
-              onChange={(e) => updateFormData({ name: e.target.value })}
-              placeholder="e.g., Jean Bosco"
-              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Email Address *</label>
-            <input
-              type="email"
-              required
-              value={formData.email ?? ""}
-              onChange={(e) => updateFormData({ email: e.target.value })}
-              placeholder="merchant@domain.rw"
-              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
-            />
-          </div>
-
+          
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Phone Number</label>
             <input
@@ -95,6 +77,17 @@ export const VendorForm = () => {
               value={formData.phone ?? ""}
               onChange={(e) => updateFormData({ phone: e.target.value })}
               placeholder="+250 780 000 000"
+              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
+            />
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Store Address</label>
+            <input
+              type="text"
+              value={formData.address ?? ""}
+              onChange={(e) => updateFormData({ address: e.target.value })}
+              placeholder="Ex: Nyabugogo, Mumashyirahamwe"
               className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
             />
           </div>
@@ -111,17 +104,20 @@ export const VendorForm = () => {
           />
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-white/10">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.isActive ?? true}
-              onChange={(e) => updateFormData({ isActive: e.target.checked })}
-              className="w-4 h-4 rounded border-white/10 bg-black/50 text-blue-600 focus:ring-0 cursor-pointer"
-            />
-            <span className="text-xs font-bold text-gray-300">Active Merchant Store Status</span>
+        <div className="flex items-center gap-3 pt-2">
+          <input
+            type="checkbox"
+            id="isActiveStore"
+            checked={formData.isActive ?? true}
+            onChange={(e) => updateFormData({ isActive: e.target.checked })}
+            className="w-4 h-4 rounded border-white/10 bg-black/50 text-blue-600 focus:ring-0 cursor-pointer"
+          />
+          <label htmlFor="isActiveStore" className="text-xs font-bold text-gray-300 cursor-pointer">
+            Active Merchant Store Status
           </label>
+        </div>
 
+        <div className="flex items-center justify-end pt-4 border-t border-white/10">
           <div className="flex items-center gap-3">
             <button
               type="button"

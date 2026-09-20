@@ -1,17 +1,24 @@
 // src/features/admin/vendors/VendorDetail.tsx
 import { useVendorStore } from '../../../store/vendorStore';
-import { ArrowLeft, Store, Package, TrendingUp, Mail, Phone, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Store, Package, TrendingUp, Mail, Phone, ShieldCheck, Edit3 } from 'lucide-react';
 
 export const VendorDetail = () => {
-  const { selectedVendor, activeMetrics, setEditingVendor } = useVendorStore();
+  const { selectedVendor, activeMetrics, setSelectedVendor, setEditingVendor } = useVendorStore();
 
   if (!selectedVendor) return null;
+
+  const handleEditClick = () => {
+    // Populate form data into store before opening edit form if needed
+    setEditingVendor(selectedVendor);
+  };
+
+  console.log("Selected vendor",selectedVendor)
 
   return (
     <div className="space-y-6">
       {/* Back Navigation Bar */}
       <button
-        onClick={() => setEditingVendor(null)}
+        onClick={() => setSelectedVendor(null)}
         className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors cursor-pointer bg-[#0a0a0a] border border-white/10 px-4 py-2 rounded-xl w-fit"
       >
         <ArrowLeft size={14} /> Back to Directory Catalog
@@ -20,7 +27,7 @@ export const VendorDetail = () => {
       {/* Header Profile Card */}
       <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-2xl shadow-lg shadow-blue-900/40">
+          <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-2xl shadow-lg shadow-blue-900/40">
             {selectedVendor.logoUrl ? (
               <img src={selectedVendor.logoUrl} alt={selectedVendor.storeName} className="w-full h-full object-cover rounded-2xl" />
             ) : (
@@ -43,10 +50,10 @@ export const VendorDetail = () => {
         </div>
 
         <button
-          onClick={() => setEditingVendor(selectedVendor)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+          onClick={handleEditClick}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-2"
         >
-          Modify Store Details
+          <Edit3 size={14} /> Modify Store Details
         </button>
       </div>
 
@@ -94,7 +101,7 @@ export const VendorDetail = () => {
         <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-white border-b border-white/10 pb-3">Business Summary</h3>
           <p className="text-xs text-gray-300 leading-relaxed">
-            {'No detailed business overview description has been provided for this store account.'}
+            {selectedVendor.description || 'No detailed business overview description has been provided for this store account.'}
           </p>
         </div>
       </div>

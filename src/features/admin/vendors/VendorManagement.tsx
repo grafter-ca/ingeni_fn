@@ -5,6 +5,7 @@ import { VendorList } from "./VendorList";
 import { VendorForm } from "./VendorForm";
 import { VendorDetail } from "./VendorDetail";
 import { Store, UserCheck, PlusCircle } from "lucide-react";
+import toast from "react-hot-toast";
 
 export const VendorManagement = () => {
   const {
@@ -56,9 +57,12 @@ export const VendorManagement = () => {
         address: approvalForm.address,
         phone: approvalForm.phone
       });
+      toast.success("Merchant successfully authorized and onboarded!");
       setSelectedRequest(null);
-    } catch (err) {
-      // Handled inside store alert / state catch
+      await fetchVendors();
+      await fetchPendingRequests();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to authorize merchant request.");
     }
   };
 
@@ -148,7 +152,15 @@ export const VendorManagement = () => {
                       Review & Approve
                     </button>
                     <button
-                      onClick={() => rejectVendorRequest(req.id)}
+                      onClick={async () => {
+                        try {
+                          await rejectVendorRequest(req.id);
+                          toast.success("Merchant request rejected.");
+                          await fetchPendingRequests();
+                        } catch (err: any) {
+                          toast.error(err?.message || "Action failed.");
+                        }
+                      }}
                       className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
                     >
                       Reject
@@ -166,9 +178,9 @@ export const VendorManagement = () => {
       {/* Approval Modal Configuration Box */}
       {selectedRequest && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl">
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl text-white">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-base font-bold flex items-center gap-2">
                 <Store size={18} className="text-blue-500" /> Complete Vendor Setup
               </h3>
               <button onClick={() => setSelectedRequest(null)} className="text-gray-400 hover:text-white text-sm cursor-pointer">✕</button>

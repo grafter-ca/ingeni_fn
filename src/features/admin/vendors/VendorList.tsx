@@ -73,7 +73,7 @@ export const VendorList = memo(() => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-gray-400 bg-white/[0.01]">
+                <tr className="border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-gray-400 bg-white/1">
                   <th className="p-4 pl-6">Merchant Store</th>
                   <th className="p-4">Owner Name</th>
                   <th className="p-4">Contact Info</th>
@@ -83,7 +83,7 @@ export const VendorList = memo(() => {
               </thead>
               <tbody className="divide-y divide-white/5 text-xs font-medium">
                 {filteredVendors.map((vendor) => (
-                  <tr key={vendor.id} className="hover:bg-white/[0.02] transition-colors group">
+                  <tr key={vendor.id} className="hover:bg-white/2 transition-colors group">
                     <td className="p-4 pl-6">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
@@ -96,7 +96,7 @@ export const VendorList = memo(() => {
                           >
                             {vendor.storeName}
                           </button>
-                          <p className="text-[10px] text-gray-500 font-mono truncate max-w-[200px]">
+                          <p className="text-[10px] text-gray-500 font-mono truncate max-w-50">
                             {vendor.description || vendor.businessDescription || "No overview profile details provided."}
                           </p>
                         </div>
