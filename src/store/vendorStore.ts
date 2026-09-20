@@ -94,10 +94,10 @@ interface VendorState {
 
   updateFormData: (data: Partial<VendorState["formData"]>) => void;
   setEditingVendor: (vendor: ApiVendor | null) => void;
-  
+
   initSocketListeners: () => void;
   disconnectSocket: () => void;
-   setSelectedVendor: (vendor: ApiVendor | null) => void;
+  setSelectedVendor: (vendor: ApiVendor | null) => void;
   addVendor: () => Promise<void>;
   updateVendor: (id: string) => Promise<void>;
   removeVendor: (id: string) => Promise<void>;
@@ -135,7 +135,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     phone: "",
     storeName: "",
     description: "",
-    address:"",
+    address: "",
     logoUrl: "",
     isActive: true,
   },
@@ -206,18 +206,18 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     }
   },
 
-fetchStorefrontMetrics: async () => {
+  fetchStorefrontMetrics: async () => {
     try {
       const response = await vendorService.getStorefrontMetrics();
       // Handle Axios response wrappers or direct data payloads securely
       const metricsData = response;
-      
-      set({ 
+
+      set({
         stats: {
           revenue: Number(metricsData?.revenue || 0),
           activeOrders: Number(metricsData?.activeOrders || 0),
           productCount: Number(metricsData?.productCount || get().vendors.length || 0),
-        } 
+        }
       });
     } catch (error) {
       console.error("Failed to fetch storefront metrics", error);
@@ -309,9 +309,7 @@ fetchStorefrontMetrics: async () => {
       const targetQuery = searchQuery.toLowerCase().trim();
       updatedList = updatedList.filter(
         (v) =>
-          v.name.toLowerCase().includes(targetQuery) ||
-          v.storeName.toLowerCase().includes(targetQuery) ||
-          v.email.toLowerCase().includes(targetQuery)
+          v.storeName.toLowerCase().includes(targetQuery) || ""
       );
     }
 
@@ -333,7 +331,7 @@ fetchStorefrontMetrics: async () => {
         formData: {
           phone: vendor.phone || "",
           description: vendor.description || "",
-          address:vendor.address || "",
+          address: vendor.address || "",
           storeName: vendor.storeName,
           logoUrl: vendor.logoUrl || "",
           isActive: vendor.isActive,
@@ -346,7 +344,7 @@ fetchStorefrontMetrics: async () => {
           phone: "",
           storeName: "",
           description: "",
-          address:"",
+          address: "",
           logoUrl: "",
           isActive: true,
         }
@@ -414,7 +412,7 @@ fetchStorefrontMetrics: async () => {
     socket.off('vendorDeleted');
     socket.off('vendorCreated');
   },
-addVendor: async () => {
+  addVendor: async () => {
     const { formData, fetchVendors } = get();
     if (!formData.storeName?.trim()) {
       throw new Error("Vendor Store name is strictly required parameters.");
@@ -423,7 +421,16 @@ addVendor: async () => {
     set({ isLoading: true });
     try {
       await vendorService.createVendor(formData);
-      set({ isEditing: null, formData: {} }); // Clear form data bundle on success if desired
+      set({
+        isEditing: null, formData: {
+          phone: "",
+          storeName: "",
+          description: "",
+          address: "",
+          logoUrl: "",
+          isActive: true,
+        }
+      }); // Clear form data bundle on success if desired
       await fetchVendors();
     } catch (err: any) {
       throw err;
@@ -432,13 +439,13 @@ addVendor: async () => {
     }
   },
 
- updateVendor: async (id) => {
+  updateVendor: async (id) => {
     const { formData, fetchVendors } = get();
     set({ isLoading: true });
     try {
       await vendorService.updateVendor(id, formData);
-      set({ 
-        isEditing: null, 
+      set({
+        isEditing: null,
         formData: { storeName: "", phone: "", address: "", description: "", isActive: true } // Reset to clean defaults
       });
       await fetchVendors();

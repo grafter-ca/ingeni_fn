@@ -8,7 +8,7 @@ import {
 
 export const authClient = createAuthClient({
     // This points to your NestJS backend URL (running in Docker)
-    baseURL: "http://localhost:8000",
+    baseURL: "https://ingeri-api.onrender.com",
     plugins: [
         adminClient(),
         organizationClient(),

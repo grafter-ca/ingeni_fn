@@ -1,6 +1,6 @@
 // src/libs/api.ts
 
-const LOCAL_BASE = import.meta.env.VITE_BETTER_AUTH_URL || "http://localhost:8000/api";
+const LOCAL_BASE = import.meta.env.VITE_BETTER_AUTH_URL || "https://ingeri-api.onrender.com/api";
 
 async function baseRequest<T>(
   baseUrl: string,
