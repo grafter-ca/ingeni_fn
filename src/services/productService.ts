@@ -111,7 +111,7 @@ export const productService = {
   getProduct: async (id: string | number): Promise<ApiProduct> => {
     const idStr = String(id);
     const realId = idStr.replace("local-", "");
-    return await localApi.get<ApiProduct>(`/products/public/${realId}`);
+    return await localApi.get<ApiProduct>(`/products/${realId}`);
   },
 
   /**
