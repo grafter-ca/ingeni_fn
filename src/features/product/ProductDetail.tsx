@@ -11,6 +11,7 @@ import {
   Store,
   Check,
   ShoppingCart,
+  AlertTriangle,
   Shield,
   Share2,
 } from "lucide-react";
@@ -60,43 +61,53 @@ export default function ProductDetail() {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [isReviewsLoading, setIsReviewsLoading] = useState(false);
 
-  // Automatic Timer for Auth Prompt Modal (e.g., 15 seconds for unauthenticated guest users)
+  // Automatic Timer for Auth Prompt Modal (15 seconds for guest users)
   useEffect(() => {
-    if (isAuthenticated) return; // Don't trigger if user is signed in
+    if (isAuthenticated) return;
 
     const timer = setTimeout(() => {
       setIsAuthModalOpen(true);
-    }, 15000); // 15 seconds delay
+    }, 15000);
 
     return () => clearTimeout(timer);
   }, [isAuthenticated]);
 
-  // Fetch Product, Database Reviews, and Store Wishlist Status
+  // Fetch Product, Database Reviews, and Reset View State on Product ID change
   useEffect(() => {
     if (!id) return;
 
     let isMounted = true;
     setIsLoading(true);
+    setError(null);
+    setImageIndex(0); // Reset gallery index when navigating to a new product
+    setQuantity(1);   // Reset purchase quantity counter
 
     const loadProductData = async () => {
       try {
         // 1. Fetch Product details
         const productData = await productService.getProduct(id);
         if (!isMounted) return;
+
+        if (!productData) {
+          setError("Component missing from master data record");
+          return;
+        }
+
         setProduct(productData);
 
         // 2. Fetch persisted reviews from DB service
         setIsReviewsLoading(true);
         try {
           const fetchedReviews = await productService.getProductReviews(id);
-          if (isMounted) setReviews(fetchedReviews);
+          if (isMounted) setReviews(Array.isArray(fetchedReviews) ? fetchedReviews : []);
         } catch (revErr) {
           console.error("Failed to load database reviews:", revErr);
+          if (isMounted) setReviews([]);
         } finally {
           if (isMounted) setIsReviewsLoading(false);
         }
 
-        // 3. Check wishlist status via store action (supports backend + guest fallback)
+        // 3. Check wishlist status via store action
         try {
           await checkWishlist(id);
         } catch (wishErr) {
@@ -121,6 +132,29 @@ export default function ProductDetail() {
     };
   }, [id, checkWishlist]);
 
+  // Safely Normalize Image URLs
+  const images: NormalizedImage[] = useMemo(() => {
+    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) {
+      return [{ url: "/placeholder.png" }];
+    }
+
+    return product.images.map((img: any) => {
+      if (typeof img === "string" && img.trim() !== "") {
+        return { url: img };
+      }
+      if (typeof img === "object" && img !== null && img.url) {
+        return { url: img.url };
+      }
+      return { url: "/placeholder.png" };
+    });
+  }, [product]);
+
+  // Ensure imageIndex stays within valid bounds
+  const currentImage = useMemo(() => {
+    if (!images || images.length === 0) return "/placeholder.png";
+    return images[imageIndex]?.url || images[0]?.url || "/placeholder.png";
+  }, [images, imageIndex]);
+
   // Determine current wishlist status from store map
   const isWishlisted = id ? Boolean(wishlistStatusMap[id]) : false;
 
@@ -135,24 +169,9 @@ export default function ProductDetail() {
 
   // Suggested Products Slicing
   const suggestedProducts = useMemo(() => {
-    return products.filter((p) => p.id !== id).slice(0, 4);
+    if (!Array.isArray(products)) return [];
+    return products.filter((p) => String(p.id) !== String(id)).slice(0, 4);
   }, [products, id]);
-
-  const images: NormalizedImage[] = useMemo(() => {
-    if (!product?.images || !Array.isArray(product.images)) {
-      return [{ url: "/placeholder.png" }];
-    }
-
-    return product.images.map((img: any) => {
-      if (typeof img === "string") {
-        return { url: img };
-      }
-
-      return {
-        url: img?.url || "/placeholder.png",
-      };
-    });
-  }, [product]);
 
   const parsedPrice = Number(product?.price || 0);
 
@@ -188,7 +207,7 @@ export default function ProductDetail() {
       try {
         await navigator.share({
           title: product?.title || "Product details",
-          text: `Check out ${product?.title} on Ingeni Store!`,
+          text: `Check out ${product?.title || "this product"} on Ingeni Store!`,
           url: window.location.href,
         });
       } catch (err) {
@@ -203,14 +222,16 @@ export default function ProductDetail() {
   const handleAddToCartClick = useCallback(() => {
     if (!product) return;
 
+    const displayImage = images[0]?.url || "/placeholder.png";
+
     for (let i = 0; i < quantity; i++) {
       handleAddToCart({
         id: String(product.id),
-        name: product.title,
-        price: Number(product.price),
-        image: images[0]?.url || "/placeholder.png",
+        name: product.title || "Untitled Asset",
+        price: Number(product.price || 0),
+        image: displayImage,
         productId: String(product.id),
-        vendorId: String(product.vendorId),
+        vendorId: String(product.vendorId || ""),
       });
     }
 
@@ -235,7 +256,7 @@ export default function ProductDetail() {
         directProductPurchase: {
           id: String(product.id),
           title: product.title,
-          price: Number(product.price),
+          price: Number(product.price || 0),
           quantity,
         },
       },
@@ -254,7 +275,7 @@ export default function ProductDetail() {
     }
   };
 
-  // Calculate the dynamic average rating from the loaded reviews for this product
+  // Dynamic average rating calculation
   const totalRating = reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
   const calculatedAverageRating = reviews.length > 0 ? totalRating / reviews.length : 0.0;
 
@@ -268,16 +289,17 @@ export default function ProductDetail() {
 
   if (error || !product) {
     return (
-      <div className="min-h-screen bg-white dark:bg-[#050505] flex flex-col items-center justify-center gap-4 font-mono transition-colors">
-        <p className="text-zinc-500 dark:text-gray-400 text-xs uppercase tracking-widest">
-          Asset tracking node unallocated
+      <div className="min-h-screen bg-white dark:bg-[#050505] flex flex-col items-center justify-center gap-4 font-mono transition-colors p-6 text-center">
+        <AlertTriangle size={32} className="text-amber-500" />
+        <p className="text-zinc-500 dark:text-gray-400 text-sm uppercase tracking-widest">
+          {error || "Asset tracking node unallocated"}
         </p>
 
         <Button
           label="Return to Catalog"
           icon={ArrowLeft}
           onClick={() => navigate("/products")}
-          className="border border-zinc-200 dark:border-white/10 text-xs uppercase cursor-pointer text-zinc-800 dark:text-gray-200 bg-transparent hover:bg-zinc-100 dark:hover:bg-white/5"
+          className="py-4"
         />
       </div>
     );
@@ -286,7 +308,7 @@ export default function ProductDetail() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] text-zinc-900 dark:text-gray-100 font-sans selection:bg-blue-500/30 transition-colors">
 
-      {/* Auth Prompt Modal (Triggers on timer or actions) */}
+      {/* Auth Prompt Modal */}
       <AuthPromptModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -359,7 +381,6 @@ export default function ProductDetail() {
           </button>
 
           <div className="flex items-center gap-4">
-            {/* Share Button */}
             <button
               onClick={handleShare}
               title="Share Product"
@@ -368,7 +389,6 @@ export default function ProductDetail() {
               <Share2 size={16} />
             </button>
 
-            {/* Wishlist Button Connected to Store Logic */}
             <WishlistButton
               productId={String(product.id)}
               initialState={isWishlisted}
@@ -382,12 +402,12 @@ export default function ProductDetail() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
 
-          {/* Gallery */}
+          {/* Gallery Section */}
           <div className="lg:col-span-7 space-y-4 lg:sticky lg:top-24">
             <div className="relative aspect-square bg-zinc-100 dark:bg-[#0b0b0b] overflow-hidden rounded-3xl border border-zinc-200 dark:border-white/10 group transition-colors shadow-sm">
               <img
-                src={images[imageIndex]?.url}
-                alt={product.title}
+                src={currentImage}
+                alt={product.title || "Product image"}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
               />
 
@@ -411,27 +431,30 @@ export default function ProductDetail() {
             </div>
 
             {/* Thumbnails */}
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {images.map((img, i) => (
-                <button
-                  key={i}
-                  onClick={() => setImageIndex(i)}
-                  className={`shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${i === imageIndex
-                    ? "border-blue-500 scale-95 shadow-md shadow-blue-500/20"
-                    : "border-zinc-200 dark:border-white/10 opacity-60 hover:opacity-100"
+            {images.length > 1 && (
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                {images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setImageIndex(i)}
+                    className={`shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                      i === imageIndex
+                        ? "border-blue-500 scale-95 shadow-md shadow-blue-500/20"
+                        : "border-zinc-200 dark:border-white/10 opacity-60 hover:opacity-100"
                     }`}
-                >
-                  <img
-                    src={img.url}
-                    alt={`thumbnail-${i}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
+                  >
+                    <img
+                      src={img.url}
+                      alt={`thumbnail-${i}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Product Details */}
+          {/* Product Details Section */}
           <div className="lg:col-span-5 space-y-8">
             <section className="space-y-4">
               <div className="flex items-center gap-3">
@@ -460,7 +483,7 @@ export default function ProductDetail() {
               </div>
 
               <p className="text-zinc-600 dark:text-gray-300 text-sm leading-relaxed">
-                {product.description}
+                {product.description || "No specific product description provided."}
               </p>
             </section>
 
@@ -487,7 +510,7 @@ export default function ProductDetail() {
                     Inventory
                   </p>
                   <p className="text-sm font-black text-zinc-900 dark:text-white mt-1">
-                    {product.stock} Units
+                    {product.stock ?? 0} Units
                   </p>
                 </div>
 
@@ -501,7 +524,7 @@ export default function ProductDetail() {
                 </div>
               </div>
 
-              {/* Action Button for quantity change */}
+              {/* Quantity Selection */}
               <div className="flex items-center justify-between pt-2">
                 <span className="text-xs font-semibold text-zinc-500 dark:text-gray-400 uppercase tracking-wider">
                   Quantity
@@ -511,7 +534,7 @@ export default function ProductDetail() {
                   onDecrease={() => handleQuantityChange(-1)}
                   onIncrease={() => handleQuantityChange(1)}
                   min={1}
-                  max={product.stock} // Automatically caps at maximum available inventory stock
+                  max={Math.max(1, product.stock ?? 1)}
                 />
               </div>
 
@@ -520,8 +543,8 @@ export default function ProductDetail() {
                   label={added ? "Added to Cart" : "Add to Cart"}
                   icon={added ? Check : ShoppingCart}
                   onClick={handleAddToCartClick}
-                  disabled={added}
-                  className="w-full py-4 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors shadow-lg shadow-blue-600/20"
+                  disabled={added || (product.stock !== undefined && product.stock <= 0)}
+                  className="w-full py-4 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50"
                 />
 
                 <Button
@@ -529,26 +552,16 @@ export default function ProductDetail() {
                   icon={ArrowLeft}
                   iconPosition="left"
                   onClick={() => navigate("/products")}
-                  disabled={added}
                   className="w-full py-4 flex items-center justify-center bg-transparent border border-zinc-300 dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 text-zinc-700 dark:text-gray-300 hover:text-zinc-900 dark:hover:text-white rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors"
                 />
               </div>
             </div>
 
-            {/* Description */}
-            <div className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 transition-colors shadow-sm">
-              <h2 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
-                Product Description
-              </h2>
-              <p className="text-zinc-600 dark:text-gray-300 text-sm leading-relaxed mt-3">
-                {product.description}
-              </p>
-            </div>
-
+            {/* Guarantees */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <motion.div
                 whileHover={{ y: -5 }}
-                className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 cursor-pointer transition-colors shadow-sm"
+                className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 transition-colors shadow-sm"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                   <Check size={20} className="text-emerald-600 dark:text-emerald-400" />
@@ -561,7 +574,7 @@ export default function ProductDetail() {
 
               <motion.div
                 whileHover={{ y: -5 }}
-                className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 cursor-pointer transition-colors shadow-sm"
+                className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 transition-colors shadow-sm"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                   <Shield size={20} className="text-blue-600 dark:text-blue-400" />
@@ -577,7 +590,7 @@ export default function ProductDetail() {
 
         {/* Reviews Section */}
         {!isReviewsLoading ? (
-          <div className="border-zinc-200 dark:border-white/10 transition-colors">
+          <div className="mt-16 border-t border-zinc-200 dark:border-white/10 pt-12 transition-colors">
             <ProductReviews
               productId={String(product.id)}
               reviews={reviews}
@@ -601,7 +614,7 @@ export default function ProductDetail() {
             {suggestedProducts.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
           {suggestedProducts.length === 0 && (
-            <p className="text-zinc-500 dark:text-gray-400 border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 cursor-pointer transition-colors shadow-sm">
+            <p className="text-zinc-500 dark:text-gray-400 border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center justify-center transition-colors shadow-sm text-sm">
               No suggested alternatives available at the moment.
             </p>
           )}
