@@ -1,3 +1,4 @@
+// src/pages/admin/AdminVendorRequests.tsx
 import { useEffect, useState } from "react";
 import { 
   Store, 
@@ -12,7 +13,11 @@ import {
   DollarSign,
   Building,
   Trash2,
-  CheckCircle
+  CheckCircle,
+  Search,
+  Filter,
+  Clock,
+  AlertCircle
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useVendorStore, type OnboardingRequest, type AdminRequest } from "../../../store/vendorStore";
@@ -21,6 +26,8 @@ import { localApi } from "../../../libs/api";
 export default function AdminVendorRequests() {
   const [activeTab, setActiveTab] = useState<"onboarding" | "inquiries">("onboarding");
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   // Pull store states and actions
   const { 
@@ -53,10 +60,7 @@ export default function AdminVendorRequests() {
     setError(null);
     setLoadingQueries(true);
     try {
-      // Fetch onboarding requests via Zustand store
       await fetchPendingRequests();
-
-      // Fetch admin queries/support requests safely ensuring an array fallback
       const queries = await localApi.get<AdminRequest[]>("/vendors/admin-requests");
       setAdminQueries(Array.isArray(queries) ? queries : (queries as any)?.data || []);
     } catch (err: any) {
@@ -69,6 +73,27 @@ export default function AdminVendorRequests() {
   useEffect(() => {
     void fetchData();
   }, []);
+
+  // Filtered lists
+  const safeOnboarding = Array.isArray(onboardingRequests) ? onboardingRequests : [];
+  const safeQueries = Array.isArray(adminQueries) ? adminQueries : [];
+
+  const filteredOnboarding = safeOnboarding.filter(req => {
+    const query = searchTerm.toLowerCase();
+    const name = req.user?.name?.toLowerCase() || "";
+    const email = req.user?.email?.toLowerCase() || "";
+    const desc = (req.businessDescription || req.description || "").toLowerCase();
+    return name.includes(query) || email.includes(query) || desc.includes(query);
+  });
+
+  const filteredQueries = safeQueries.filter(q => {
+    const query = searchTerm.toLowerCase();
+    const message = q.message?.toLowerCase() || "";
+    const type = q.type?.toLowerCase() || "";
+    const matchesSearch = message.includes(query) || type.includes(query);
+    const matchesStatus = statusFilter === "ALL" || q.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const handleOpenApproveModal = (req: OnboardingRequest) => {
     setSelectedRequest(req);
@@ -151,8 +176,14 @@ export default function AdminVendorRequests() {
 
   const isLoading = storeLoading || isLoadingRequests || loadingQueries;
 
+  // Stats calculation
+  const pendingOnboardingCount = safeOnboarding.length;
+  const activeQueriesCount = safeQueries.filter(q => q.status === 'PENDING' || q.status === 'PROCESSING').length;
+  const resolvedQueriesCount = safeQueries.filter(q => q.status === 'RESOLVED').length;
+
   return (
-    <div className="p-6 max-w-7xl mx-auto min-h-screen text-zinc-100">
+    <div className="p-6 max-w-7xl mx-auto min-h-screen text-zinc-100 font-poppins">
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
         <div>
@@ -165,28 +196,92 @@ export default function AdminVendorRequests() {
         </div>
       </div>
 
-      {/* Tabs Switcher */}
-      <div className="flex gap-3 mb-6 border-b border-zinc-800 pb-4">
-        <button
-          onClick={() => setActiveTab("onboarding")}
-          className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-            activeTab === "onboarding"
-              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
-              : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
-          }`}
-        >
-          Onboarding Applications ({Array.isArray(onboardingRequests) ? onboardingRequests.length : 0})
-        </button>
-        <button
-          onClick={() => setActiveTab("inquiries")}
-          className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-            activeTab === "inquiries"
-              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
-              : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
-          }`}
-        >
-          Vendor Support & Cashouts ({Array.isArray(adminQueries) ? adminQueries.length : 0})
-        </button>
+      {/* Stats Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-xl flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 block mb-1">Pending Onboarding</span>
+            <div className="text-2xl font-bold text-white">{pendingOnboardingCount}</div>
+          </div>
+          <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <Building size={20} />
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-xl flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 block mb-1">Active Inquiries / Cashouts</span>
+            <div className="text-2xl font-bold text-amber-400">{activeQueriesCount}</div>
+          </div>
+          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <Clock size={20} />
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800 shadow-xl flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 block mb-1">Resolved Tickets</span>
+            <div className="text-2xl font-bold text-blue-400">{resolvedQueriesCount}</div>
+          </div>
+          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <CheckCircle2 size={20} />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs Switcher & Search Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-zinc-800">
+        <div className="flex gap-3">
+          <button
+            onClick={() => setActiveTab("onboarding")}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              activeTab === "onboarding"
+                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
+                : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
+            }`}
+          >
+            Onboarding Applications ({safeOnboarding.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("inquiries")}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              activeTab === "inquiries"
+                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
+                : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800"
+            }`}
+          >
+            Support & Cashouts ({safeQueries.length})
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              placeholder="Search merchants, email, keywords..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-2 text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 w-full sm:w-72 transition"
+            />
+          </div>
+
+          {/* Status filter for Inquiries tab */}
+          {activeTab === "inquiries" && (
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="PROCESSING">Processing</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -203,14 +298,14 @@ export default function AdminVendorRequests() {
         </div>
       ) : activeTab === "onboarding" ? (
         // --- ONBOARDING QUEUE ---
-        !Array.isArray(onboardingRequests) || onboardingRequests.length === 0 ? (
+        filteredOnboarding.length === 0 ? (
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-16 text-center text-zinc-500">
             <CheckCircle2 className="mx-auto text-emerald-500 mb-3" size={48} />
-            <p className="text-sm font-medium text-zinc-300">No pending vendor onboarding applications.</p>
+            <p className="text-sm font-medium text-zinc-300">No matching vendor onboarding applications found.</p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
-            {onboardingRequests.map((req) => (
+            {filteredOnboarding.map((req) => (
               <div key={req.id} className="bg-zinc-900/60 border border-zinc-800 rounded-3xl p-6 flex flex-col justify-between shadow-sm">
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
@@ -255,14 +350,14 @@ export default function AdminVendorRequests() {
         )
       ) : (
         // --- VENDOR SUPPORT & CASHOUT QUERIES ---
-        !Array.isArray(adminQueries) || adminQueries.length === 0 ? (
+        filteredQueries.length === 0 ? (
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-16 text-center text-zinc-500">
             <MessageSquare className="mx-auto text-zinc-600 mb-3" size={48} />
-            <p className="text-sm font-medium text-zinc-300">No active vendor support queries or cashout requests found.</p>
+            <p className="text-sm font-medium text-zinc-300">No active vendor support queries or cashout requests matched.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {adminQueries.map((query) => (
+            {filteredQueries.map((query) => (
               <div key={query.id} className="bg-zinc-900/60 border border-zinc-800 rounded-3xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
                 <div className="space-y-2 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -433,7 +528,7 @@ export default function AdminVendorRequests() {
                 <select
                   value={replyStatus}
                   onChange={(e) => setReplyStatus(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   <option value="PENDING">Pending</option>
                   <option value="PROCESSING">Processing / Under Review</option>

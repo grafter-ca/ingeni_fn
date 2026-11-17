@@ -1,6 +1,4 @@
 // components/vendor/VendorOrdersView.tsx
-// Complete updated VendorOrdersView with fully integrated payment status toggling
-
 import { useState, useEffect } from "react";
 import { 
   ShoppingCart, 
@@ -53,6 +51,7 @@ interface Order {
   customerEmail?: string;
   phoneNumber?: string;
   shippingAddress?: string;
+  shippingFees?: number;
   paymentStatus?: string;
   status: string;
   totalAmount?: number;
@@ -163,7 +162,7 @@ export const VendorOrdersView = () => {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-blue-500/50 transition placeholder:text-gray-500"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/3 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-blue-500/50 transition placeholder:text-gray-500"
           />
         </div>
         <div className="font-mono text-xs text-gray-400">
@@ -178,12 +177,12 @@ export const VendorOrdersView = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse font-mono text-xs">
             <thead>
-              <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase tracking-wider bg-white/[0.01]">
+              <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase tracking-wider bg-white/1">
                 <th className="py-4 px-6">Order / Date</th>
                 <th className="py-4 px-6">Customer & Address</th>
                 <th className="py-4 px-6">Payment Status</th>
                 <th className="py-4 px-6">Net Earnings</th>
-                <th className="py-4 px-6">Commission</th>
+                <th className="py-4 px-6">Commission (8%)</th>
                 <th className="py-4 px-6">Order Status</th>
                 <th className="py-4 px-6 text-right">Actions</th>
               </tr>
@@ -239,12 +238,16 @@ export const VendorOrdersView = () => {
 
                   const total = Number(order.totalAmount || 0);
                   const firstItem = order.items?.[0];
-                  const commission = Number(firstItem?.commissionAmount || total * 0.10);
-                  const netEarnings = Number(firstItem?.vendorEarnings || total - commission);
+                  
+                  // Enforce 8% platform fee calculation
+                  const commissionRate = Number(firstItem?.commissionRate || 0.08);
+                  const commission = Number(firstItem?.commissionAmount || total * commissionRate);
+                  const storedEarnings = Number(firstItem?.vendorEarnings || 0);
+                  const netEarnings = storedEarnings > 0 ? storedEarnings : total - commission;
 
                   const customerEmail = order.email || order.customerEmail || "No email provided";
                   return (
-                    <tr key={order.id} className="hover:bg-white/[0.02] transition">
+                    <tr key={order.id} className="hover:bg-white/2 transition">
                       <td className="py-4 px-6 font-bold text-white">
                         #{order.orderNumber}
                         <span className="block text-[10px] text-gray-500 font-normal">
@@ -280,7 +283,7 @@ export const VendorOrdersView = () => {
                                 updatePaymentStatus(order.id, e.target.value);
                               }
                             }}
-                            className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
+                            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
                           >
                             <option value="INITIALIZED" className="bg-[#0c0c0e] text-amber-400">INITIALIZED</option>
                             <option value="PENDING" className="bg-[#0c0c0e] text-amber-400">PENDING</option>
@@ -310,7 +313,7 @@ export const VendorOrdersView = () => {
                       <td className="py-4 px-6">
                         <div className="space-y-0.5">
                           <span className="text-gray-400 font-bold">RWF {commission.toLocaleString()}</span>
-                          <span className="text-[9px] text-gray-500 block">10% Fee</span>
+                          <span className="text-[9px] text-gray-500 block">{(commissionRate * 100).toFixed(0)}% Fee</span>
                         </div>
                       </td>
 
@@ -335,7 +338,7 @@ export const VendorOrdersView = () => {
                                 updateOrderStatus(order.id, e.target.value);
                               }
                             }}
-                            className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
+                            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
                           >
                             <option value="PENDING" className="bg-[#0c0c0e] text-amber-400">PENDING</option>
                             <option value="PROCESSING" className="bg-[#0c0c0e] text-amber-400">PROCESSING</option>
@@ -379,7 +382,7 @@ export const VendorOrdersView = () => {
 
         {/* Pagination Bar */}
         {!loading && filteredOrdersList.length > itemsPerPage && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-white/[0.01]">
+          <div className="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-white/1">
             <div className="font-mono text-xs text-gray-400">
               Page <span className="text-white font-bold">{currentPage}</span> of <span className="text-white font-bold">{totalPages}</span>
             </div>
@@ -407,20 +410,22 @@ export const VendorOrdersView = () => {
 
       {/* Order Details Modal */}
       {selectedOrderDetails && (() => {
-        console.log("Order detail",selectedOrderDetails)
         const detailCustEmail = selectedOrderDetails.email || selectedOrderDetails.customerEmail || "N/A";
         const detailCustPhone = selectedOrderDetails.phoneNumber || "N/A";
         const detailShippingAddr = selectedOrderDetails.shippingAddress || "N/A";
+        const detailShippingFees = Number(selectedOrderDetails.shippingFees || 0);
         
         const firstItem = selectedOrderDetails.items?.[0];
         const detailVendorStore = firstItem?.vendor?.storeName || "N/A";
         const detailStoreAddress = firstItem?.vendor?.address || "N/A";
 
         const totalAmt = Number(selectedOrderDetails.totalAmount || 0);
-        const commAmt = Number(firstItem?.commissionAmount || totalAmt * 0.10);
-        const commRate = Number(firstItem?.commissionRate || "");
-        const TaxAmt = Number(selectedOrderDetails.taxAmount || 0)
-        const netAmt = Number(firstItem?.vendorEarnings || totalAmt - commAmt);
+        const commissionRate = Number(firstItem?.commissionRate || 0.08);
+        const commAmt = Number(firstItem?.commissionAmount || totalAmt * commissionRate);
+        const taxAmt = Number(selectedOrderDetails.taxAmount || 0);
+        
+        const storedEarnings = Number(firstItem?.vendorEarnings || 0);
+        const netAmt = storedEarnings > 0 ? storedEarnings : totalAmt - commAmt;
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
@@ -463,7 +468,7 @@ export const VendorOrdersView = () => {
 
               <div className="space-y-3">
                 <h3 className="font-poppins font-semibold text-sm text-gray-300 uppercase tracking-wider">Customer Information</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/10 font-mono text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-white/2 border border-white/10 font-mono text-xs">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
                       <Mail size={16} />
@@ -484,7 +489,7 @@ export const VendorOrdersView = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 sm:col-span-2">
                     <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
                       <MapPin size={16} />
                     </div>
@@ -498,7 +503,7 @@ export const VendorOrdersView = () => {
 
               <div className="space-y-3">
                 <h3 className="font-poppins font-semibold text-sm text-gray-300 uppercase tracking-wider">Order Items</h3>
-                <div className="rounded-2xl bg-white/[0.02] border border-white/10 overflow-hidden font-mono text-xs">
+                <div className="rounded-2xl bg-white/2 border border-white/10 overflow-hidden font-mono text-xs">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase">
@@ -511,7 +516,7 @@ export const VendorOrdersView = () => {
                     <tbody className="divide-y divide-white/5">
                       {Array.isArray(selectedOrderDetails.items) && selectedOrderDetails.items.length > 0 ? (
                         selectedOrderDetails.items.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02]">
+                          <tr key={idx} className="hover:bg-white/2">
                             <td className="py-3 px-4 font-bold text-white">
                               {item.product?.title || item.title || `Product #${idx + 1}`}
                             </td>
@@ -536,12 +541,16 @@ export const VendorOrdersView = () => {
                   <span className="text-white font-bold">RWF {totalAmt.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
-                  <span>Platform Commission ({commRate*100}%):</span>
+                  <span>Platform Commission ({(commissionRate * 100).toFixed(0)}%):</span>
                   <span className="text-amber-400">RWF {commAmt.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
-                  <span>VAT Taxes (10%):</span>
-                  <span className="text-amber-400">RWF {TaxAmt.toLocaleString()}</span>
+                  <span>VAT Taxes:</span>
+                  <span className="text-amber-400">RWF {taxAmt.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Shipping Cost:</span>
+                  <span className="text-amber-400">RWF {detailShippingFees.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-gray-300 pt-2 border-t border-white/10 font-bold text-sm">
                   <span>Vendor Net Payout:</span>

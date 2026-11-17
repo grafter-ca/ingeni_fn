@@ -7,25 +7,25 @@ import {
 } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
-    // This points to your NestJS backend URL (running in Docker)
-    baseURL: "https://ingeri-api.onrender.com",
-    plugins: [
-        adminClient(),
-        organizationClient(),
-        multiSessionClient(),
-        lastLoginMethodClient(),
-    ],
-    fetchOptions: {
-        credentials: "include",
+  // Vite requires the VITE_ prefix to expose env vars to the browser
+  baseURL: import.meta.env.BETTER_AUTH_URL || "http://localhost:8000",
+  plugins: [
+    adminClient(),
+    organizationClient(),
+    multiSessionClient(),
+    lastLoginMethodClient(),
+  ],
+  fetchOptions: {
+    credentials: "include",
+  },
+  // Custom fields that your backend expects in the session user object
+  session: {
+    user: {
+      fields: {
+        role: "string",
+        phone: "string",
+        country: "string",
+      },
     },
-     // Custom fields that your backend expects in the session user object
-    session: {
-        user: {
-            fields: {
-                role: "string",
-                phone: "string",
-                country: "string"
-            }
-        }
-    },
+  },
 });
