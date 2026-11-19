@@ -1,8 +1,14 @@
-// src/pages/admin/AdminVendorPage.tsx
-import { memo, useEffect } from "react";
+import { memo, useCallback, useEffect } from "react";
 import { VendorManagement } from "../../../features/admin/vendors/VendorManagement";
 import { useVendorStore } from "../../../store/vendorStore";
-import { Store, UserCheck, TrendingUp, Package, ShieldCheck, RefreshCw } from "lucide-react";
+import {
+  Store,
+  UserCheck,
+  TrendingUp,
+  Package,
+  ShieldCheck,
+  RefreshCw,
+} from "lucide-react";
 
 const AdminVendorPage = () => {
   const vendors = useVendorStore((state) => state.vendors);
@@ -11,33 +17,25 @@ const AdminVendorPage = () => {
   const stats = useVendorStore((state) => state.stats);
   const pendingRequests = useVendorStore((state) => state.pendingRequests);
 
-  
-  // Store actions
   const fetchVendors = useVendorStore((state) => state.fetchVendors);
   const fetchPendingRequests = useVendorStore((state) => state.fetchPendingRequests);
   const fetchStorefrontMetrics = useVendorStore((state) => state.fetchStorefrontMetrics);
   const initSocketListeners = useVendorStore((state) => state.initSocketListeners);
-  const disconnectSocket = useVendorStore((state) => state.disconnectSocket);
+
+  const syncEcosystem = useCallback(() => {
+    void fetchVendors();
+    void fetchPendingRequests();
+    void fetchStorefrontMetrics();
+  }, [fetchVendors, fetchPendingRequests, fetchStorefrontMetrics]);
 
   useEffect(() => {
-    // Initial data fetch coordination
-    fetchVendors();
-    fetchPendingRequests();
-    fetchStorefrontMetrics();
-
-    // Bind real-time socket updates
+    syncEcosystem();
     initSocketListeners();
+  }, [syncEcosystem, initSocketListeners]);
 
-    return () => {
-      disconnectSocket();
-    };
-  }, [fetchVendors, fetchPendingRequests, fetchStorefrontMetrics, initSocketListeners, disconnectSocket]);
-
-  const handleManualRefresh = () => {
-    fetchVendors();
-    fetchPendingRequests();
-    fetchStorefrontMetrics();
-  };
+  const safeVendors = Array.isArray(vendors) ? vendors : [];
+  const safePending = Array.isArray(pendingRequests) ? pendingRequests : [];
+  const activeVendorsCount = safeVendors.filter((v) => v.isActive).length;
 
   return (
     <div className="min-h-screen bg-[#050505] p-6 lg:p-8 text-white max-w-360 mx-auto space-y-8">
@@ -53,11 +51,15 @@ const AdminVendorPage = () => {
         </div>
 
         <button
-          onClick={handleManualRefresh}
+          type="button"
+          onClick={syncEcosystem}
           disabled={isLoading}
-          className="flex items-center gap-2 self-start md:self-auto bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-2.5 rounded-2xl border border-white/10 transition-all text-xs font-semibold disabled:opacity-50"
+          className="flex items-center gap-2 self-start md:self-auto bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-4 py-2.5 rounded-2xl border border-white/10 transition-all text-xs font-semibold disabled:opacity-50 cursor-pointer"
         >
-          <RefreshCw size={14} className={isLoading ? "animate-spin text-blue-400" : ""} />
+          <RefreshCw
+            size={14}
+            className={isLoading ? "animate-spin text-blue-400" : ""}
+          />
           {isLoading ? "Synchronizing..." : "Refresh Ecosystem"}
         </button>
       </header>
@@ -88,7 +90,10 @@ const AdminVendorPage = () => {
                   <Store size={14} className="text-blue-400" /> Total Active Vendors
                 </span>
                 <span className="font-bold text-white text-sm">
-                  {vendors.filter((v) => v.isActive).length} <span className="text-gray-500 font-normal">/ {vendors.length}</span>
+                  {activeVendorsCount}{" "}
+                  <span className="text-gray-500 font-normal">
+                    / {safeVendors.length}
+                  </span>
                 </span>
               </div>
 
@@ -96,7 +101,9 @@ const AdminVendorPage = () => {
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <UserCheck size={14} className="text-amber-400" /> Pending Requests
                 </span>
-                <span className="font-bold text-amber-400 text-sm">{pendingRequests.length}</span>
+                <span className="font-bold text-amber-400 text-sm">
+                  {safePending.length}
+                </span>
               </div>
 
               <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
@@ -110,12 +117,16 @@ const AdminVendorPage = () => {
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <Package size={14} className="text-indigo-400" /> Pending Orders
                 </span>
-                <span className="font-bold text-white text-sm">{stats?.activeOrders ?? 0}</span>
+                <span className="font-bold text-white text-sm">
+                  {stats?.activeOrders ?? 0}
+                </span>
               </div>
 
               <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 font-medium">Total Products Listed</span>
-                <span className="font-bold text-white text-sm">{stats?.productCount ?? 0}</span>
+                <span className="font-bold text-white text-sm">
+                  {stats?.productCount ?? 0}
+                </span>
               </div>
 
               <div className="flex justify-between items-center bg-white/2 p-3.5 rounded-2xl border border-white/5 pt-3.5 mt-2">

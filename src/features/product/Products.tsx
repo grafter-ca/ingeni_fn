@@ -184,7 +184,7 @@ const Products = () => {
       <div className="border-b border-zinc-200 dark:border-white/5 bg-white/80 dark:bg-[#050505]/80 backdrop-blur-md sticky top-0 z-30 transition-colors">
         <div className="px-6 py-5 flex flex-wrap items-center justify-between gap-4 max-w-7xl mx-auto">
           <div>
-            <h1 className="font-black text-xl md:text-2xl text-zinc-900 dark:text-white tracking-tight uppercase font-mono bg-gradient-to-r from-zinc-900 to-zinc-600 dark:from-white dark:to-gray-400 bg-clip-text">
+            <h1 className="font-black text-xl md:text-2xl text-zinc-900 dark:text-white tracking-tight uppercase font-mono bg-linear-to-r from-zinc-900 to-zinc-600 dark:from-white dark:to-gray-400 bg-clip-text">
               {currentCategoryName}
             </h1>
             <p className="text-zinc-500 dark:text-gray-500 text-[10px] mt-1 font-bold tracking-[0.2em] uppercase font-mono">
@@ -254,7 +254,7 @@ const Products = () => {
                 <>
                   <AnimatePresence mode="popLayout">
                     <motion.div
-                      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"
+                      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"
                       layout
                     >
                       {paginated.map((product, i) => (

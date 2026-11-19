@@ -1,10 +1,21 @@
 import { io } from 'socket.io-client';
 
-const LOCAL_BASE = "https://ingeri-api.onrender.com";
+const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
 
+const resolveSocketOrigin = (rawUrl: string): string => {
+  if (!rawUrl) {
+    return 'http://localhost:8000';
+  }
 
-// Connect directly to your NestJS backend socket namespace
-export const socket = io(LOCAL_BASE + '/ws', {
+  return rawUrl
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '');
+};
+
+const SOCKET_ORIGIN = resolveSocketOrigin(RAW_API_URL);
+
+// Connect to your NestJS backend socket namespace (/ws)
+export const socket = io(`${SOCKET_ORIGIN}/ws`, {
   withCredentials: true,
   transports: ['websocket', 'polling'],
 });
@@ -15,4 +26,8 @@ socket.on('connect', () => {
 
 socket.on('disconnect', (reason) => {
   console.log('❌ Disconnected from Socket.io server:', reason);
+});
+
+socket.on('connect_error', (err) => {
+  console.error('⚠️ Socket.io connection error:', err.message);
 });

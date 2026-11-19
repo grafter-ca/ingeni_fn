@@ -8,7 +8,7 @@ import {
 
 export const authClient = createAuthClient({
   // Vite requires the VITE_ prefix to expose env vars to the browser
-  baseURL: import.meta.env.BETTER_AUTH_URL || "http://localhost:8000",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
   plugins: [
     adminClient(),
     organizationClient(),

@@ -1,33 +1,71 @@
-// src/features/admin/vendors/VendorForm.tsx
 import { useState } from "react";
 import { useVendorStore } from "../../../store/vendorStore";
-import { Store, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Store, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
 
 export const VendorForm = () => {
-  const { formData, updateFormData, isEditing, setEditingVendor, addVendor, updateVendor } = useVendorStore();
+  const {
+    formData,
+    updateFormData,
+    isEditing,
+    setEditingVendor,
+    addVendor,
+    updateVendor,
+    fetchVendors,
+    fetchStorefrontMetrics,
+  } = useVendorStore() as any;
+
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const cleanStoreName = (formData?.storeName ?? "").trim();
+    if (!cleanStoreName) {
+      setErrorMessage("Store title / brand name is required.");
+      return;
+    }
+
     setSubmitting(true);
     setErrorMessage(null);
-    
-    console.log("Submitting formData payload:", formData);
+
+    const payload = {
+      ...formData,
+      storeName: cleanStoreName,
+      phone: (formData?.phone ?? "").trim(),
+      address: (formData?.address ?? "").trim(),
+      description: (formData?.description ?? "").trim(),
+      isActive: formData?.isActive ?? true,
+    };
 
     try {
+      updateFormData(payload);
+
       if (isEditing && isEditing.id) {
-        await updateVendor(isEditing.id);
+        await updateVendor(isEditing.id, payload);
+        toast.success(`Updated merchant profile "${cleanStoreName}".`);
       } else {
-        await addVendor();
+        await addVendor(payload);
+        toast.success(`Provisioned merchant profile "${cleanStoreName}".`);
       }
-      // Successfully completed, reset form view/editing state
+
+      if (typeof fetchVendors === "function") {
+        await fetchVendors();
+      }
+      if (typeof fetchStorefrontMetrics === "function") {
+        await fetchStorefrontMetrics();
+      }
+
       setEditingVendor(null);
     } catch (err: any) {
-      console.error("Vendor submission error:", err);
-      setErrorMessage(err.message || "Failed to commit merchant configuration record.");
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to commit merchant configuration record.";
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
-      // Always clear the submitting lock whether success or failure occurs
       setSubmitting(false);
     }
   };
@@ -38,14 +76,20 @@ export const VendorForm = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setEditingVendor(null)}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition-all cursor-pointer"
+            disabled={submitting}
+            onClick={() => {
+              setErrorMessage(null);
+              setEditingVendor(null);
+            }}
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-300 transition-all cursor-pointer"
           >
             <ArrowLeft size={16} />
           </button>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <Store className="text-blue-500" size={18} />
-            {isEditing?.id ? `Edit Merchant: ${isEditing.storeName}` : "Provision New Merchant Account"}
+            {isEditing?.id
+              ? `Edit Merchant: ${isEditing.storeName}`
+              : "Provision New Merchant Account"}
           </h2>
         </div>
       </div>
@@ -59,19 +103,26 @@ export const VendorForm = () => {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Store Title / Brand Name *</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+              Store Title / Brand Name *
+            </label>
             <input
               type="text"
               required
               value={formData.storeName ?? ""}
-              onChange={(e) => updateFormData({ storeName: e.target.value })}
+              onChange={(e) => {
+                if (errorMessage) setErrorMessage(null);
+                updateFormData({ storeName: e.target.value });
+              }}
               placeholder="e.g., Kigali Apex Hub"
               className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
             />
           </div>
-          
+
           <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Phone Number</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+              Phone Number
+            </label>
             <input
               type="text"
               value={formData.phone ?? ""}
@@ -82,7 +133,9 @@ export const VendorForm = () => {
           </div>
 
           <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Store Address</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+              Store Address
+            </label>
             <input
               type="text"
               value={formData.address ?? ""}
@@ -94,7 +147,9 @@ export const VendorForm = () => {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-wider text-gray-400">Store Overview / Description</label>
+          <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+            Store Overview / Description
+          </label>
           <textarea
             rows={3}
             value={formData.description ?? ""}
@@ -112,7 +167,10 @@ export const VendorForm = () => {
             onChange={(e) => updateFormData({ isActive: e.target.checked })}
             className="w-4 h-4 rounded border-white/10 bg-black/50 text-blue-600 focus:ring-0 cursor-pointer"
           />
-          <label htmlFor="isActiveStore" className="text-xs font-bold text-gray-300 cursor-pointer">
+          <label
+            htmlFor="isActiveStore"
+            className="text-xs font-bold text-gray-300 cursor-pointer"
+          >
             Active Merchant Store Status
           </label>
         </div>
@@ -121,8 +179,12 @@ export const VendorForm = () => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setEditingVendor(null)}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold cursor-pointer"
+              disabled={submitting}
+              onClick={() => {
+                setErrorMessage(null);
+                setEditingVendor(null);
+              }}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-300 rounded-xl text-xs font-semibold cursor-pointer"
             >
               Cancel
             </button>
@@ -131,8 +193,16 @@ export const VendorForm = () => {
               disabled={submitting}
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg flex items-center gap-2 disabled:opacity-50"
             >
-              <CheckCircle2 size={15} />
-              {submitting ? "Saving..." : isEditing?.id ? "Update Merchant Profile" : "Create Merchant Profile"}
+              {submitting ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={15} />
+              )}
+              {submitting
+                ? "Saving..."
+                : isEditing?.id
+                ? "Update Merchant Profile"
+                : "Create Merchant Profile"}
             </button>
           </div>
         </div>

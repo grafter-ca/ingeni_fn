@@ -1,10 +1,20 @@
-// src/features/admin/vendors/VendorList.tsx
-import { memo } from "react";
+import { memo, useMemo, useState } from "react";
 import { useVendorStore } from "../../../store/vendorStore";
-import { Store, Trash2, Edit3, Shield, ShieldOff, Search, SlidersHorizontal } from "lucide-react";
+import {
+  Store,
+  Trash2,
+  Edit3,
+  Shield,
+  ShieldOff,
+  Search,
+  SlidersHorizontal,
+  Loader2,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 export const VendorList = memo(() => {
   const {
+    vendors,
     filteredVendors,
     isLoading,
     searchQuery,
@@ -15,15 +25,59 @@ export const VendorList = memo(() => {
     setEditingVendor,
     fetchVendorDetails,
     removeVendor,
-    toggleVendorStatus
+    toggleVendorStatus,
   } = useVendorStore();
+
+  const [busyVendorId, setBusyVendorId] = useState<string | null>(null);
+
+  const displayVendors = useMemo(() => {
+    const safeAll = Array.isArray(vendors) ? vendors : [];
+    const safeFiltered = Array.isArray(filteredVendors) ? filteredVendors : [];
+
+    // If the store maintains a separate filteredVendors array and filters/searches are active, respect it.
+    // Otherwise if filteredVendors hasn't been initialized yet while vendors has items, show vendors.
+    if (safeFiltered.length > 0 || searchQuery.trim() || statusFilter !== "all") {
+      return safeFiltered;
+    }
+    return safeAll;
+  }, [vendors, filteredVendors, searchQuery, statusFilter]);
+
+  const handleToggleStatus = async (vendorId: string, currentActive: boolean) => {
+    setBusyVendorId(vendorId);
+    try {
+      await toggleVendorStatus(vendorId, currentActive);
+      toast.success(
+        currentActive ? "Merchant store deactivated." : "Merchant store activated.",
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update merchant status.");
+    } finally {
+      setBusyVendorId(null);
+    }
+  };
+
+  const handleRemove = async (vendorId: string, storeName: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${storeName}?`)) return;
+    setBusyVendorId(vendorId);
+    try {
+      await removeVendor(vendorId);
+      toast.success(`Removed "${storeName}" from directory.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove merchant record.");
+    } finally {
+      setBusyVendorId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Search and Filters Toolbar */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[#0a0a0a] border border-white/10 p-4 rounded-3xl shadow-xl">
         <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+          <Search
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
+            size={16}
+          />
           <input
             type="text"
             placeholder="Search merchants by name, store, or email..."
@@ -41,14 +95,21 @@ export const VendorList = memo(() => {
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="bg-transparent text-xs text-white focus:outline-none cursor-pointer font-medium"
             >
-              <option value="all" className="bg-[#0a0a0a] text-white">All Statuses</option>
-              <option value="active" className="bg-[#0a0a0a] text-white">Active Only</option>
-              <option value="inactive" className="bg-[#0a0a0a] text-white">Inactive Only</option>
+              <option value="all" className="bg-[#0a0a0a] text-white">
+                All Statuses
+              </option>
+              <option value="active" className="bg-[#0a0a0a] text-white">
+                Active Only
+              </option>
+              <option value="inactive" className="bg-[#0a0a0a] text-white">
+                Inactive Only
+              </option>
             </select>
           </div>
 
           {(searchQuery || statusFilter !== "all") && (
             <button
+              type="button"
               onClick={clearFilters}
               className="text-xs text-blue-400 hover:underline font-semibold px-2 cursor-pointer"
             >
@@ -58,16 +119,18 @@ export const VendorList = memo(() => {
         </div>
       </div>
 
-      {/* Directory Table / Cards Container */}
+      {/* Directory Table Container */}
       <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-xl">
-        {isLoading && filteredVendors.length === 0 ? (
+        {isLoading && displayVendors.length === 0 ? (
           <div className="p-16 text-center text-gray-500 text-xs font-mono animate-pulse">
             Synchronizing merchant records ledger...
           </div>
-        ) : filteredVendors.length === 0 ? (
+        ) : displayVendors.length === 0 ? (
           <div className="p-16 text-center text-gray-500 space-y-2">
             <Store size={36} className="mx-auto text-gray-600" />
-            <p className="text-sm font-medium">No merchant records match your filter parameters.</p>
+            <p className="text-sm font-medium">
+              No merchant records match your filter parameters.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -82,80 +145,115 @@ export const VendorList = memo(() => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-xs font-medium">
-                {filteredVendors.map((vendor) => (
-                  <tr key={vendor.id} className="hover:bg-white/2 transition-colors group">
-                    <td className="p-4 pl-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
-                          {vendor.storeName?.charAt(0)?.toUpperCase() || "S"}
+                {displayVendors.map((vendor: any) => {
+                  const isBusy = busyVendorId === vendor.id;
+                  const ownerName =
+                    vendor.name || vendor.ownerName || vendor.user?.name || "—";
+                  const contactEmail =
+                    vendor.email || vendor.supportEmail || vendor.user?.email || "No email";
+                  const contactPhone =
+                    vendor.phone || vendor.user?.phone || "No phone listed";
+
+                  return (
+                    <tr
+                      key={vendor.id}
+                      className="hover:bg-white/2 transition-colors group"
+                    >
+                      <td className="p-4 pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
+                            {vendor.storeName?.charAt(0)?.toUpperCase() || "S"}
+                          </div>
+                          <div>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => void fetchVendorDetails(vendor.id)}
+                              className="font-bold text-white hover:text-blue-400 transition-colors text-left cursor-pointer"
+                            >
+                              {vendor.storeName || "Unnamed Store"}
+                            </button>
+                            <p className="text-[10px] text-gray-500 font-mono truncate max-w-50">
+                              {vendor.description ||
+                                vendor.businessDescription ||
+                                "No overview profile details provided."}
+                            </p>
+                          </div>
                         </div>
-                        <div>
+                      </td>
+
+                      <td className="p-4 text-gray-300">{ownerName}</td>
+
+                      <td className="p-4 text-gray-400 font-mono text-[11px]">
+                        <div>{contactEmail}</div>
+                        <div className="text-gray-500">{contactPhone}</div>
+                      </td>
+
+                      <td className="p-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            vendor.isActive
+                              ? "bg-green-500/10 text-green-400 border-green-500/20"
+                              : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                          }`}
+                        >
+                          {vendor.isActive ? (
+                            <Shield size={10} />
+                          ) : (
+                            <ShieldOff size={10} />
+                          )}
+                          {vendor.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+
+                      <td className="p-4 pr-6 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => fetchVendorDetails(vendor.id)}
-                            className="font-bold text-white hover:text-blue-400 transition-colors text-left cursor-pointer"
-                          >
-                            {vendor.storeName}
-                          </button>
-                          <p className="text-[10px] text-gray-500 font-mono truncate max-w-50">
-                            {vendor.description || vendor.businessDescription || "No overview profile details provided."}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="p-4 text-gray-300">
-                      {vendor.name}
-                    </td>
-
-                    <td className="p-4 text-gray-400 font-mono text-[11px]">
-                      <div>{vendor.email}</div>
-                      <div className="text-gray-500">{vendor.phone || "No phone listed"}</div>
-                    </td>
-
-                    <td className="p-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                          vendor.isActive
-                            ? "bg-green-500/10 text-green-400 border-green-500/20"
-                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                        }`}
-                      >
-                        {vendor.isActive ? <Shield size={10} /> : <ShieldOff size={10} />}
-                        {vendor.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-
-                    <td className="p-4 pr-6 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => toggleVendorStatus(vendor.id, vendor.isActive)}
-                          title={vendor.isActive ? "Deactivate store" : "Activate store"}
-                          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition-all cursor-pointer"
-                        >
-                          {vendor.isActive ? <ShieldOff size={14} className="text-amber-400" /> : <Shield size={14} className="text-green-400" />}
-                        </button>
-                        <button
-                          onClick={() => setEditingVendor(vendor)}
-                          title="Edit Merchant Details"
-                          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition-all cursor-pointer"
-                        >
-                          <Edit3 size={14} className="text-blue-400" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to remove ${vendor.storeName}?`)) {
-                              removeVendor(vendor.id);
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              void handleToggleStatus(vendor.id, Boolean(vendor.isActive))
                             }
-                          }}
-                          title="Delete Merchant Record"
-                          className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-all cursor-pointer"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            title={
+                              vendor.isActive ? "Deactivate store" : "Activate store"
+                            }
+                            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-300 transition-all cursor-pointer"
+                          >
+                            {isBusy ? (
+                              <Loader2 size={14} className="animate-spin text-blue-400" />
+                            ) : vendor.isActive ? (
+                              <ShieldOff size={14} className="text-amber-400" />
+                            ) : (
+                              <Shield size={14} className="text-green-400" />
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => setEditingVendor(vendor)}
+                            title="Edit Merchant Details"
+                            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-300 transition-all cursor-pointer"
+                          >
+                            <Edit3 size={14} className="text-blue-400" />
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() =>
+                              void handleRemove(vendor.id, vendor.storeName || "this store")
+                            }
+                            title="Delete Merchant Record"
+                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 disabled:opacity-50 text-rose-400 transition-all cursor-pointer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

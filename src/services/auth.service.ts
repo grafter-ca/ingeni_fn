@@ -2,6 +2,22 @@
 import { authClient } from "../libs/auth-client";
 import type { LoginPayload, RegisterPayloadProps } from "../types/api";
 
+const resolveFrontendUrl = (): string => {
+  const envUrl =
+    import.meta.env.VITE_FRONTEND_URL ||
+    import.meta.env.VITE_APP_URL;
+
+  if (envUrl && String(envUrl).trim()) {
+    return String(envUrl).trim().replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+
+  return "http://localhost:5173";
+};
+
 export const authService = {
   // --- 1. CORE ---
   signUp: async (data: RegisterPayloadProps) => {
@@ -83,6 +99,25 @@ export const authService = {
       query: query || { limit: 10, offset: 0 },
     }),
 
+ // --- 1B. PASSWORD RECOVERY ---
+  requestPasswordReset: async (email: string, redirectTo?: string) => {
+    const frontendBase = resolveFrontendUrl();
+    const targetUrl =
+      redirectTo || `${frontendBase}/reset-password`;
+
+    return await authClient.requestPasswordReset({
+      email: email.trim().toLowerCase(),
+      redirectTo: targetUrl,
+    });
+  },
+
+  resetPassword: async (newPassword: string, token: string) => {
+    return await authClient.resetPassword({
+      newPassword,
+      token,
+    });
+  },
+
   adminSetRole: async (userId: string, role: string) =>
     await authClient.admin.setRole({ userId, role: role as "user" | "admin" }),
 
@@ -97,3 +132,4 @@ export const authService = {
 
   useSession: authClient.useSession,
 };
+

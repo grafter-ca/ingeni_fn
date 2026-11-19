@@ -1,14 +1,19 @@
 // src/pages/Register.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { EastAfricanPhoneInput } from "../components/ui/EastAfricanPhoneInput";
 import CountrySelect from "../components/ui/CountrySelect";
-import { useAuthActions } from "../context/AuthContext";
-import { ArrowLeft, MailCheck, Eye, EyeOff, Link as LinkIcon } from "lucide-react";
+import { useAuthActions, useAuthState } from "../context/AuthContext";
+import {
+  ArrowLeft,
+  MailCheck,
+  Eye,
+  EyeOff,
+  Link as LinkIcon,
+} from "lucide-react";
 
-// Explicit interface matching the auth service context requirements
 interface RegisterPayloadProps {
   name: string;
   email: string;
@@ -18,11 +23,27 @@ interface RegisterPayloadProps {
   image?: string;
 }
 
+const IngeniLogo: React.FC = () => (
+  <Link to="/" className="inline-flex flex-col items-center gap-2.5 select-none group">
+    <div className="w-20 h-20 rounded-full overflow-hidden bg-white dark:bg-white/4 border border-zinc-200 dark:border-white/10 p-1 shadow-md">
+      <img
+        src="/ingeni-logo-2.png"
+        alt="Ingeni Market Logo"
+        width="44"
+        height="44"
+        fetchPriority="high"
+        className="w-full h-full object-contain"
+      />
+    </div>
+  </Link>
+);
+
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const { register } = useAuthActions();
+  const { user, isLoading } = useAuthState();
 
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -31,15 +52,23 @@ const Register: React.FC = () => {
     confirmPassword: "",
     country: "RW",
     phone: "",
-    image: "", // Direct string URI input field
+    image: "",
   });
-  
-  // Visibility toggles for passwords
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Redirect already authenticated users
+  useEffect(() => {
+    if (user && !isLoading) {
+      const role = user.role?.toLowerCase();
+      if (role === "admin") navigate("/admin", { replace: true });
+      else if (role === "vendor") navigate("/vendor", { replace: true });
+      else navigate("/products", { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -49,27 +78,38 @@ const Register: React.FC = () => {
   const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) {
-      if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.confirmPassword) {
+      if (
+        !formData.name.trim() ||
+        !formData.email.trim() ||
+        !formData.password ||
+        !formData.confirmPassword
+      ) {
         setLocalError("Please fill in all required account fields.");
+        return;
+      }
+      if (!formData.email.includes("@")) {
+        setLocalError("Please enter a valid email address.");
+        return;
+      }
+      if (formData.password.length < 8) {
+        setLocalError(
+          "Password is too short. It must be at least 8 characters long.",
+        );
         return;
       }
       if (formData.password !== formData.confirmPassword) {
         setLocalError("Passwords do not match. Please verify and try again.");
         return;
       }
-      if (formData.password.length < 8) {
-        setLocalError("Password is too short. It must be at least 8 characters long.");
-        return;
-      }
       setLocalError(null);
-      setStep(2); 
+      setStep(2);
     } else {
       await handleSubmitFinal();
     }
   };
 
   const handleSubmitFinal = async () => {
-    if (!formData.phone || formData.phone.length < 9) {
+    if (!formData.phone || formData.phone.trim().length < 9) {
       setLocalError("Please enter a valid phone number for your region.");
       return;
     }
@@ -78,7 +118,6 @@ const Register: React.FC = () => {
     setLocalError(null);
 
     try {
-      // Build strongly typed payload matching RegisterPayloadProps
       const payload: RegisterPayloadProps = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -87,7 +126,6 @@ const Register: React.FC = () => {
         country: formData.country,
       };
 
-      // Only assign image if the user provided a non-empty URI string
       if (formData.image && formData.image.trim() !== "") {
         payload.image = formData.image.trim();
       }
@@ -96,14 +134,16 @@ const Register: React.FC = () => {
       setIsSubmitted(true);
     } catch (err: any) {
       console.error("Registration error details:", err);
-      const serverMessage = 
-        err?.data?.message || 
-        err?.response?.data?.message || 
-        err?.message || 
+      const serverMessage =
+        err?.data?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
         err?.link ||
         "Registration failed. Email might already be in use.";
-      
-      setLocalError(Array.isArray(serverMessage) ? serverMessage.join(", ") : serverMessage);
+
+      setLocalError(
+        Array.isArray(serverMessage) ? serverMessage.join(", ") : serverMessage,
+      );
     } finally {
       setLoading(false);
     }
@@ -114,26 +154,35 @@ const Register: React.FC = () => {
       <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] flex flex-col justify-between px-4 sm:px-6 py-6 md:py-8 text-zinc-900 dark:text-white transition-colors overflow-y-auto">
         <header className="w-full max-w-md mx-auto">
           <button
+            type="button"
             onClick={() => navigate("/")}
-            className="inline-flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white bg-white dark:bg-white/[0.03] hover:bg-zinc-100 dark:hover:bg-white/[0.08] border border-zinc-200 dark:border-white/10 px-3.5 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white bg-white dark:bg-white/3 hover:bg-zinc-100 dark:hover:bg-white/8 border border-zinc-200 dark:border-white/10 px-3.5 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
           >
             <ArrowLeft size={14} /> Back Home
           </button>
         </header>
 
-        <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-5 sm:p-8 flex flex-col items-center text-center gap-6 shadow-2xl rounded-3xl border border-zinc-200 dark:border-white/10 my-auto mx-auto transition-colors">
-          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-1">
+        <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-6 sm:p-8 flex flex-col items-center text-center gap-6 shadow-2xl rounded-3xl border border-zinc-200 dark:border-white/10 my-auto mx-auto transition-colors">
+          <IngeniLogo />
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
             <MailCheck size={32} />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Check your email</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
+              Check your email
+            </h1>
             <p className="text-sm text-zinc-500 dark:text-gray-400">
-              We've sent a secure verification link to <span className="text-zinc-900 dark:text-white font-medium break-all">{formData.email}</span>. Please verify your inbox to activate your account.
+              We&apos;ve sent a secure verification link to{" "}
+              <span className="text-zinc-900 dark:text-white font-medium break-all">
+                {formData.email}
+              </span>
+              . Please verify your inbox to activate your Ingeni Market account.
             </p>
           </div>
 
           <div className="w-full pt-4 border-t border-zinc-100 dark:border-white/10">
             <button
+              type="button"
               onClick={() => navigate("/login")}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium h-11 rounded-xl transition-colors text-sm cursor-pointer shadow-lg shadow-blue-600/25"
             >
@@ -150,96 +199,123 @@ const Register: React.FC = () => {
     <div className="min-h-screen bg-zinc-50 dark:bg-[#050505] flex flex-col justify-between px-4 sm:px-6 py-6 md:py-8 text-zinc-900 dark:text-white transition-colors overflow-y-auto">
       <header className="w-full max-w-md mx-auto mb-4">
         <button
+          type="button"
           onClick={() => navigate("/")}
-          className="inline-flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white bg-white dark:bg-white/[0.03] hover:bg-zinc-100 dark:hover:bg-white/[0.08] border border-zinc-200 dark:border-blue-600 px-3.5 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
+          className="inline-flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white bg-white dark:bg-white/3 hover:bg-zinc-100 dark:hover:bg-white/8 border border-zinc-200 dark:border-white/10 px-3.5 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
         >
           <ArrowLeft size={14} /> Back Home
         </button>
       </header>
 
-      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-5 sm:p-8 flex flex-col gap-6 shadow-2xl rounded-3xl border border-zinc-200 dark:border-white/10 my-auto mx-auto transition-colors">
-        <div className="flex flex-col items-center text-center gap-2 border-b border-zinc-100 dark:border-white/10 pb-4">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Join ingeni</h1>
+      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-6 sm:p-8 flex flex-col gap-6 shadow-2xl rounded-3xl border border-zinc-200 dark:border-white/10 my-auto mx-auto transition-colors">
+        <div className="flex flex-col items-center text-center gap-2.5 border-b border-zinc-100 dark:border-white/10 pb-4">
+          <IngeniLogo />
+          <h1 className="text-2xl capitalize font-bold tracking-tight text-zinc-900 dark:text-white mt-1">
+            Create Your Ingeni account
+          </h1>
           <p className="text-xs text-zinc-500 dark:text-gray-400 uppercase tracking-widest font-mono">
-            Step {step} of 2: {step === 1 ? "Account Credentials" : "Personal Details"}
+            Step {step} of 2:{" "}
+            {step === 1 ? "Account Credentials" : "Personal Details"}
           </p>
+
+          {/* 2-Step Progress Bar */}
+          <div className="w-full max-w-48 grid grid-cols-2 gap-1.5 pt-1">
+            <div className="h-1.5 rounded-full bg-blue-600 transition-colors" />
+            <div
+              className={`h-1.5 rounded-full transition-colors ${
+                step === 2 ? "bg-blue-600" : "bg-zinc-200 dark:bg-white/10"
+              }`}
+            />
+          </div>
         </div>
 
-        <form onSubmit={handleNextStep} className="flex flex-col gap-4">
+        <form onSubmit={handleNextStep} className="flex flex-col gap-4" noValidate>
           {step === 1 ? (
             <>
-              <div className="space-y-1">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Full Name</label>
-                </div>
-                <div className="relative flex items-center">
-                  <Input
-                    label=""
-                    type="text"
-                    placeholder="e.g. Joe Doe"
-                    value={formData.name}
-                    onChange={(val: string) => handleChange("name", val)}
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Email Address</label>
-                </div>
-                <div className="relative flex items-center">
-                  <Input
-                    label=""
-                    type="email"
-                    placeholder="name@example.com"
-                    value={formData.email}
-                    onChange={(val: string) => handleChange("email", val)}
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="block text-zinc-700 dark:text-gray-200 font-medium text-xs ml-1">
+                  Full Name
+                </label>
+                <Input
+                  label=""
+                  type="text"
+                  placeholder="e.g. Caleb Habyarimana"
+                  value={formData.name}
+                  onChange={(val: string) => handleChange("name", val)}
+                />
               </div>
 
-              <div className="space-y-1 relative">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Password</label>
-                </div>
+              <div className="space-y-1.5">
+                <label className="block text-zinc-700 dark:text-gray-200 font-medium text-xs ml-1">
+                  Email Address
+                </label>
+                <Input
+                  label=""
+                  type="email"
+                  placeholder="name@example.com"
+                  value={formData.email}
+                  onChange={(val: string) => handleChange("email", val)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-zinc-700 dark:text-gray-200 font-medium text-xs ml-1">
+                  Password
+                </label>
                 <div className="relative flex items-center">
-                  <Input
-                    label=""
-                    type={showPassword ? "text" : "password"}
-                    placeholder="At least 8 characters"
-                    value={formData.password}
-                    onChange={(val: string) => handleChange("password", val)}
-                  />
+                  <div className="w-full [&_input]:pr-10">
+                    <Input
+                      label=""
+                      type={showPassword ? "text" : "password"}
+                      placeholder="At least 8 characters"
+                      value={formData.password}
+                      onChange={(val: string) => handleChange("password", val)}
+                    />
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
-                    aria-label="Toggle password visibility"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-2.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1 relative">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Confirm Password</label>
-                </div>
+              <div className="space-y-1.5">
+                <label className="block text-zinc-700 dark:text-gray-200 font-medium text-xs ml-1">
+                  Confirm Password
+                </label>
                 <div className="relative flex items-center">
-                  <Input
-                    label=""
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Re-enter password"
-                    value={formData.confirmPassword}
-                    onChange={(val: string) => handleChange("confirmPassword", val)}
-                  />
+                  <div className="w-full [&_input]:pr-10">
+                    <Input
+                      label=""
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Re-enter password"
+                      value={formData.confirmPassword}
+                      onChange={(val: string) =>
+                        handleChange("confirmPassword", val)
+                      }
+                    />
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
-                    aria-label="Toggle confirm password visibility"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute right-2.5 inset-y-0 my-auto h-8 w-8 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
+                    aria-label={
+                      showConfirmPassword
+                        ? "Hide confirm password"
+                        : "Show confirm password"
+                    }
                   >
-                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showConfirmPassword ? (
+                      <EyeOff size={16} />
+                    ) : (
+                      <Eye size={16} />
+                    )}
                   </button>
                 </div>
               </div>
@@ -253,10 +329,14 @@ const Register: React.FC = () => {
               {/* Avatar URI Input Section */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex flex-wrap justify-between items-center ml-1 gap-1">
-                  <label className="text-zinc-700 dark:text-gray-100 font-base text-xs">Profile Avatar URI (Optional)</label>
-                  <span className="text-[10px] text-zinc-400">e.g. Cloudinary / Unsplash URL</span>
+                  <label className="text-zinc-700 dark:text-gray-200 font-medium text-xs">
+                    Profile Avatar URI (Optional)
+                  </label>
+                  <span className="text-[10px] text-zinc-400">
+                    e.g. Cloudinary / Unsplash URL
+                  </span>
                 </div>
-                
+
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-zinc-400 pointer-events-none">
                     <LinkIcon size={16} />
@@ -266,42 +346,51 @@ const Register: React.FC = () => {
                     placeholder="https://res.cloudinary.com/.../avatar.png"
                     value={formData.image}
                     onChange={(e) => handleChange("image", e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 pl-10 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-full bg-zinc-50 dark:bg-white/3 border border-zinc-200 dark:border-white/10 rounded-xl px-3.5 py-2.5 pl-10 text-xs text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500 transition-colors"
                   />
                 </div>
 
-                {/* Example Quick-Fill Link */}
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] text-zinc-400">Need a quick test placeholder?</span>
+                  <span className="text-[10px] text-zinc-400">
+                    Need a quick test placeholder?
+                  </span>
                   <button
                     type="button"
-                    onClick={() => handleChange("image", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400")}
+                    onClick={() =>
+                      handleChange(
+                        "image",
+                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+                      )
+                    }
                     className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-medium"
                   >
                     Use Sample URL
                   </button>
                 </div>
 
-                {/* Live Preview Avatar Thumbnail */}
                 {formData.image && (
-                  <div className="flex items-center gap-3 p-2.5 bg-zinc-50 dark:bg-white/[0.02] border border-zinc-200 dark:border-white/10 rounded-xl mt-1">
+                  <div className="flex items-center gap-3 p-2.5 bg-zinc-50 dark:bg-white/2 border border-zinc-200 dark:border-white/10 rounded-xl mt-1">
                     <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-200 dark:bg-white/10 flex items-center justify-center shrink-0 border border-zinc-300 dark:border-white/10">
-                      <img 
-                        src={formData.image} 
-                        alt="Avatar preview" 
-                        className="w-full h-full object-cover" 
+                      <img
+                        src={formData.image}
+                        alt="Avatar preview"
+                        className="w-full h-full object-cover"
                         onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
+                          (e.target as HTMLElement).style.display = "none";
                         }}
                       />
                     </div>
-                    <span className="text-[11px] text-zinc-500 truncate flex-1">{formData.image}</span>
+                    <span className="text-[11px] text-zinc-500 truncate flex-1">
+                      {formData.image}
+                    </span>
                   </div>
                 )}
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-zinc-700 dark:text-gray-100 font-base text-xs ml-1">Phone Number</label>
+                <label className="text-zinc-700 dark:text-gray-200 font-medium text-xs ml-1">
+                  Phone Number
+                </label>
                 <EastAfricanPhoneInput
                   value={formData.phone}
                   onChange={(phone: string) => handleChange("phone", phone)}
@@ -309,10 +398,14 @@ const Register: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-zinc-700 dark:text-gray-100 font-base text-xs ml-1">Country / Region</label>
+                <label className="text-zinc-700 dark:text-gray-200 font-medium text-xs ml-1">
+                  Country / Region
+                </label>
                 <CountrySelect
                   value={formData.country}
-                  onChange={(country: string) => handleChange("country", country)}
+                  onChange={(country: string) =>
+                    handleChange("country", country)
+                  }
                 />
               </div>
 
@@ -332,9 +425,25 @@ const Register: React.FC = () => {
                   >
                     {loading ? (
                       <div className="flex items-center justify-center gap-2.5">
-                        <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        <svg
+                          className="animate-spin h-4 w-4 text-white shrink-0"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          />
                         </svg>
                         <span>Registering...</span>
                       </div>
@@ -348,16 +457,24 @@ const Register: React.FC = () => {
           )}
 
           {localError && (
-            <div className="bg-red-500/10 border border-red-500/20 p-3.5 rounded-xl mt-1">
-              <p className="text-red-600 dark:text-red-400 text-xs text-center font-medium">{localError}</p>
+            <div
+              role="alert"
+              className="bg-red-500/10 border border-red-500/20 p-3.5 rounded-xl mt-1"
+            >
+              <p className="text-red-600 dark:text-red-400 text-xs text-center font-medium">
+                {localError}
+              </p>
             </div>
           )}
         </form>
 
-        <footer className="text-center pt-2 border-t border-zinc-100 dark:border-white/5">
+        <footer className="text-center pt-3 border-t border-zinc-100 dark:border-white/5">
           <p className="text-zinc-500 dark:text-gray-400 text-xs">
             Already have an account?{" "}
-            <Link to="/login" className="text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-500 dark:hover:text-blue-300 transition-colors">
+            <Link
+              to="/login"
+              className="text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-500 dark:hover:text-blue-300 transition-colors"
+            >
               Sign In
             </Link>
           </p>

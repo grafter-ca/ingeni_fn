@@ -45,7 +45,7 @@ const CategoriesPage = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] text-zinc-900 dark:text-white transition-colors pb-20">
       {/* Background Ambient Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[350px] bg-blue-600/[0.03] dark:bg-emerald-600/[0.03] rounded-full blur-[160px] pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-200 h-87.5 bg-blue-600/3 dark:bg-emerald-600/3 rounded-full blur-[160px] pointer-events-none" />
 
       {/* Header Banner */}
       <div className="border-b border-zinc-200 dark:border-white/5 bg-zinc-50/50 dark:bg-[#080808]/50 backdrop-blur-md pt-8 pb-10 px-6">
@@ -61,7 +61,7 @@ const CategoriesPage = () => {
 
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200 dark:border-white/10 mb-3 shadow-inner">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 mb-3 shadow-inner">
                 <Layers size={14} className="text-blue-600 dark:text-emerald-400" />
                 <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-600 dark:text-gray-300">
                   Marketplace Directory
@@ -83,7 +83,7 @@ const CategoriesPage = () => {
                 placeholder="Search categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/[0.03] text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-emerald-500 transition-all shadow-sm"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-emerald-500 transition-all shadow-sm"
               />
             </div>
           </div>

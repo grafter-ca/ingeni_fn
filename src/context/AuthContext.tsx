@@ -15,6 +15,8 @@ interface AuthState {
 interface AuthActions {
   login: (payload: LoginPayload, token?: string) => Promise<UserRole>;
   register: (payload: RegisterPayloadProps) => Promise<void>;
+  requestPasswordReset: (email: string, redirectTo?: string) => Promise<void>;
+  resetPassword: (newPassword: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
   vendor: {
@@ -90,6 +92,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     dispatch({ type: "LOGOUT" });
   }, []);
 
+  const requestPasswordReset = useCallback(
+    async (email: string, redirectTo?: string) => {
+      const response = await authService.requestPasswordReset(email, redirectTo);
+      if (response?.error) {
+        throw new Error(
+          response.error.message || "Could not send password reset email.",
+        );
+      }
+    },
+    [],
+  );
+
+  const resetPassword = useCallback(
+    async (newPassword: string, token: string) => {
+      const response = await authService.resetPassword(newPassword, token);
+      if (response?.error) {
+        throw new Error(response.error.message || "Password reset failed.");
+      }
+    },
+    [],
+  );
+
   const logout = useCallback(async () => {
     try {
       await authService.signOut();
@@ -136,11 +160,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const actions = useMemo(() => ({
     login,
     register,
+    requestPasswordReset,
+    resetPassword,
     logout,
     updateProfile,
     vendor: vendorActions,
     admin: adminActions
-  }), [login, register, logout, updateProfile, vendorActions, adminActions]);
+  }), [login, register, logout, updateProfile,requestPasswordReset, resetPassword, vendorActions, adminActions]);
 
   // Combine state values, injecting explicit isLoading based on session hook state
   const memoizedState = useMemo(() => ({

@@ -85,7 +85,7 @@ export const VendorOverview = () => {
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Welcome Banner */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-blue-900/40 via-[#0c0c0e] to-[#0c0c0e] border border-white/10 relative overflow-hidden shadow-2xl">
+      <div className="p-8 rounded-3xl bg-linear-to-r from-blue-900/40 via-[#0c0c0e] to-[#0c0c0e] border border-white/10 relative overflow-hidden shadow-2xl">
         <div className="absolute right-0 top-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono text-[10px] uppercase tracking-wider mb-4">
@@ -148,7 +148,7 @@ export const VendorOverview = () => {
                 </tr>
               ) : (
                 safeOrders.slice(0, 5).map((order) => (
-                  <tr key={order.id} className="hover:bg-white/[0.02] transition">
+                  <tr key={order.id} className="hover:bg-white/2 transition">
                     <td className="py-3.5 px-4 font-bold text-white">#{order.orderNumber}</td>
                     <td className="py-3.5 px-4 text-gray-300">{order.phoneNumber || "N/A"}</td>
                     <td className="py-3.5 px-4 text-blue-400">RWF {Number(order.totalAmount || 0).toLocaleString()}</td>
