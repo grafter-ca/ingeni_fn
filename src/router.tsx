@@ -12,6 +12,8 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import Unauthorized from "./pages/Unauthorized";
@@ -51,6 +53,8 @@ export const router = createBrowserRouter([
   // --- 1. STANDALONE AUTHENTICATION ROUTES ---
   { path: "/login", element: <Login /> },
   { path: "/register", element: <Register /> },
+  { path: "/forgot-password", element: <ForgotPassword /> },
+  { path: "/reset-password", element: <ResetPassword /> },
   { path: "/privacy", element: <Privacy /> },
   { path: "/terms", element: <Terms /> },
 
@@ -59,8 +63,8 @@ export const router = createBrowserRouter([
     path: "/profile",
     children: [
       {
-        index: true, 
-        element: <ProfilePage />
+        index: true,
+        element: <ProfilePage />,
       },
     ],
   },
@@ -85,13 +89,13 @@ export const router = createBrowserRouter([
       { path: "unauthorized", element: <Unauthorized /> },
       { path: "cart", element: <Cart /> },
       { path: "wishlist", element: <Wishlist /> },
-      { 
-        path: "checkout", 
+      {
+        path: "checkout",
         element: (
           <ProtectedRoute requiredRole="user">
             <CheckoutPage />
           </ProtectedRoute>
-        ) 
+        ),
       },
       { path: "order-success/:orderNumber", element: <OrderSuccess /> },
       { path: "my-orders", element: <MyOrders /> },

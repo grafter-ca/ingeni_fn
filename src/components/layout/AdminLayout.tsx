@@ -144,7 +144,7 @@ export default function AdminLayout() {
       )}
 
       {/* Main Content Node Container (Offset padding layout balance: pl-64) */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-60">
         
         {/* Mobile Header: Visible ONLY on mobile targets */}
         <header className="h-16 flex items-center justify-between px-6 bg-[#050505]/80 backdrop-blur-md border-b border-white/5 lg:hidden shrink-0 sticky top-0 z-30">

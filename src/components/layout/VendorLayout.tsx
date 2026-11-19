@@ -1,7 +1,18 @@
 // src/components/layout/VendorLayout.tsx
-import { useState, useEffect } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, ShoppingCart, Settings, Menu, X, Store, Bell, Wallet } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingCart, 
+  Settings, 
+  Menu, 
+  X, 
+  Store, 
+  Bell, 
+  Wallet, 
+  ChevronDown
+} from "lucide-react";
 import { useOrderStore } from "../../store/useOrderStore";
 import { useProductStore } from "../../store/productStore";
 import { useVendorStore } from "../../store/vendorStore";
@@ -10,11 +21,17 @@ import Logout from "../../components/ui/Logout";
 
 const VendorLayout = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   const { orders, fetchVendorOrders } = useOrderStore();
   const { fetchCategories, fetchVendorProducts } = useProductStore();
-  const { fetchVendorFinancials } = useVendorStore();
+  const { fetchVendorFinancials, requests } = useVendorStore();
   const { user } = useAuthState();
 
   const vendorId = user?.vendorId || user?.id;
@@ -28,9 +45,24 @@ const VendorLayout = () => {
     }
   }, [fetchVendorOrders, fetchVendorProducts, fetchCategories, vendorId, fetchVendorFinancials]);
 
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const safeOrders = Array.isArray(orders) ? orders : [];
+  const safeRequests = Array.isArray(requests) ? requests : [];
   
-  // Calculate total vendor earnings by looping through all orders and their items safely
+  // Calculate total vendor earnings
   const totalVendorEarnings = safeOrders.reduce((acc, order) => {
     const items = Array.isArray(order.items) ? order.items : [];
     const orderEarnings = items.reduce((itemAcc, item) => {
@@ -40,10 +72,28 @@ const VendorLayout = () => {
     return acc + orderEarnings;
   }, 0);
 
-  // Format with thousand separator and remove any leading zeros
   const netBalance = totalVendorEarnings.toLocaleString();
-
   const pendingCount = safeOrders.filter(o => o.status === 'PENDING').length;
+
+  // Build Notification items from live orders & cashout tickets
+  const notificationItems = [
+    ...safeOrders.slice(0, 4).map(o => ({
+      id: o.id,
+      title: `Order #${o.orderNumber || o.id.slice(-6)}`,
+      desc: `Status: ${o.status} • RWF ${Number(o.totalAmount || 0).toLocaleString()}`,
+      time: new Date(o.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      type: o.status === 'PENDING' ? 'warning' : 'info',
+      link: '/vendor/orders'
+    })),
+    ...safeRequests.slice(0, 3).map(r => ({
+      id: r.id,
+      title: `Cashout / ${r.type}`,
+      desc: `Status: ${r.status} ${r.amount ? `• RWF ${Number(r.amount).toLocaleString()}` : ''}`,
+      time: 'Recent',
+      type: r.status === 'APPROVED' ? 'success' : r.status === 'REJECTED' ? 'error' : 'warning',
+      link: '/vendor/financials'
+    }))
+  ];
 
   const menuItems = [
     { name: "Overview", path: "/vendor", icon: <LayoutDashboard size={20} /> },
@@ -93,7 +143,7 @@ const VendorLayout = () => {
           </div>
           <div>
             <span className="text-[10px] font-mono uppercase tracking-widest text-blue-400">Vendor Portal</span>
-            <h2 className="font-bold text-base text-white tracking-tight">Ingeni Store / Hub</h2>
+            <h2 className="font-bold text-base text-white tracking-tight">Ingeni Store</h2>
           </div>
         </div>
 
@@ -110,7 +160,7 @@ const VendorLayout = () => {
                 className={`flex items-center justify-between px-4 py-3.5 rounded-xl font-mono text-xs transition-all group ${
                   isActive 
                     ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25 font-semibold" 
-                    : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                    : "text-gray-400 hover:text-white hover:bg-white/4"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -131,11 +181,10 @@ const VendorLayout = () => {
 
         {/* Sidebar Footer */}
         <div className="pt-6 border-t border-white/10 space-y-3">
-          <div className="px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/5 font-mono text-xs">
-            <span className="text-gray-500 block text-[10px] uppercase">Net Sales.Earnings</span>
+          <div className="px-3 py-2.5 rounded-xl bg-white/2 border border-white/5 font-mono text-xs">
+            <span className="text-gray-500 block text-[10px] uppercase">Net Sales Earnings</span>
             <span className="text-blue-400 font-bold">RWF {netBalance}</span>
           </div>
-          {/* Replaced static link with real context-powered Logout button */}
           <div className="pt-1">
             <Logout />
           </div>
@@ -161,11 +210,123 @@ const VendorLayout = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button aria-label="Notifications" className="p-2.5 rounded-xl bg-[#0c0c0e] border border-white/10 text-gray-400 hover:text-white relative cursor-pointer">
-              <Bell size={18} />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            </button>
+          <div className="flex items-center gap-3">
+            
+            {/* NOTIFICATIONS DROPDOWN */}
+            <div className="relative" ref={notificationRef}>
+              <button
+                aria-label="Notifications"
+                onClick={() => {
+                  setIsNotificationsOpen(!isNotificationsOpen);
+                  setIsProfileOpen(false);
+                }}
+                className="p-2.5 rounded-xl bg-[#0c0c0e] border border-white/10 text-gray-400 hover:text-white relative cursor-pointer transition"
+              >
+                <Bell size={18} />
+                {notificationItems.length > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                )}
+              </button>
+
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-3 w-80 rounded-2xl bg-[#0c0c0e] border border-white/10 shadow-2xl p-4 z-50 font-mono animate-fadeIn">
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+                    <span className="font-bold text-xs text-white uppercase tracking-wider">Store Activity & Alerts</span>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px]">
+                      {notificationItems.length} New
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                    {notificationItems.length === 0 ? (
+                      <p className="text-center py-6 text-gray-500 text-xs">No new notifications.</p>
+                    ) : (
+                      notificationItems.map((n) => (
+                        <div 
+                          key={n.id}
+                          onClick={() => {
+                            navigate(n.link);
+                            setIsNotificationsOpen(false);
+                          }}
+                          className="p-3 rounded-xl bg-white/2 hover:bg-white/5 border border-white/5 cursor-pointer transition space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white text-xs">{n.title}</span>
+                            <span className="text-[10px] text-gray-500">{n.time}</span>
+                          </div>
+                          <p className="text-[11px] text-gray-400 leading-relaxed">{n.desc}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* PROFILE DROPDOWN */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => {
+                  setIsProfileOpen(!isProfileOpen);
+                  setIsNotificationsOpen(false);
+                }}
+                className="flex items-center gap-3 pl-3 pr-2 py-2 rounded-xl bg-[#0c0c0e] border border-white/10 hover:border-white/20 transition cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'V'}
+                </div>
+                <div className="text-left hidden sm:block">
+                  <span className="block font-bold text-xs text-white truncate max-w-30">
+                    {user?.name || 'Vendor Partner'}
+                  </span>
+                  <span className="text-[10px] text-blue-400 font-mono capitalize">
+                    {user?.role || 'Vendor'}
+                  </span>
+                </div>
+                <ChevronDown size={14} className="text-gray-400" />
+              </button>
+
+              {isProfileOpen && (
+                <div className="absolute right-0 mt-3 w-64 rounded-2xl bg-[#0c0c0e] border border-white/10 shadow-2xl p-3 z-50 font-mono animate-fadeIn space-y-2">
+                  <div className="p-3 rounded-xl bg-white/2 border border-white/5 space-y-1">
+                    <span className="text-gray-400 text-[10px] uppercase block">Signed in as</span>
+                    <span className="text-white text-xs font-bold block truncate">{user?.email || 'vendor@ingenistore.rw'}</span>
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] mt-1">
+                      Active Storefront
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 pt-1">
+                    <button
+                      onClick={() => {
+                        navigate('/vendor/settings');
+                        setIsProfileOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-300 hover:text-white hover:bg-white/4 text-xs transition text-left cursor-pointer"
+                    >
+                      <Settings size={15} className="text-blue-400" />
+                      <span>Account Settings</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        navigate('/vendor/financials');
+                        setIsProfileOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-gray-300 hover:text-white hover:bg-white/4 text-xs transition text-left cursor-pointer"
+                    >
+                      <Wallet size={15} className="text-emerald-400" />
+                      <span>Financial Ledger</span>
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/10">
+                    <Logout />
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
         </header>
 
