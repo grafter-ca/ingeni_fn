@@ -18,7 +18,7 @@ import { useProductStore } from "../../store/productStore";
 import { useAuthState } from "../../context/AuthContext";
 import { ContactActionBtn } from "../common/ContactActionBtn";
 
-type Props = { 
+type Props = {
   product: ApiProduct;
   onOpenAuthModal?: () => void;
   priority?: boolean; // True for above-the-fold items
@@ -39,11 +39,16 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
       : (product.images?.[0] as any)?.url ||
         "https://placehold.co/400x400/18181b/a1a1aa?text=No+Image";
 
-  const calculatedRatingFromReviews = product.reviews && product.reviews.length > 0
-    ? product.reviews.reduce((acc, rev) => acc + (Number(rev.rating) || 0), 0) / product.reviews.length
-    : 0;
+  const calculatedRatingFromReviews =
+    product.reviews && product.reviews.length > 0
+      ? product.reviews.reduce(
+          (acc, rev) => acc + (Number(rev.rating) || 0),
+          0,
+        ) / product.reviews.length
+      : 0;
 
-  const averageRating = product.averageRating || product.rating || calculatedRatingFromReviews;
+  const averageRating =
+    product.averageRating || product.rating || calculatedRatingFromReviews;
   const reviewCount = product.reviewCount || product.reviews?.length || 0;
 
   const resolvedVendorId = product.vendorId || product.vendor?.id;
@@ -69,7 +74,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
         productId: product.id,
       });
     },
-    [product, handleAddToCart, mainImage, resolvedVendorId]
+    [product, handleAddToCart, mainImage, resolvedVendorId],
   );
 
   const handleQuickView = useCallback(
@@ -77,7 +82,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
       e.stopPropagation();
       navigate(`/products/${product.id}`);
     },
-    [navigate, product.id]
+    [navigate, product.id],
   );
 
   const handleToggleWishlist = useCallback(
@@ -96,24 +101,26 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
         setIsWishloading(false);
       }
     },
-    [user, product.id, toggleWishlist, onOpenAuthModal]
+    [user, product.id, toggleWishlist, onOpenAuthModal],
   );
 
   const cleanPhone = product.vendor?.phone?.replace(/[^0-9+]/g, "") || "";
 
   return (
     <motion.section
-      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/5 transition-all duration-300 max-w-[350px] sm:max-w-none mx-auto w-full select-none"
+      className="group bg-white dark:bg-[#0a0a0a] rounded-2xl overflow-hidden cursor-pointer flex flex-col h-full border border-zinc-200 dark:border-white/5 hover:border-blue-500/20 hover:shadow-2xl hover:shadow-blue-500/5 transition-all duration-300 max-w-87.5 sm:max-w-none mx-auto w-full select-none"
       whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       onClick={() => navigate(`/products/${product.id}`)}
     >
       {/* ── 1. Image & Overlay Container (Explicit aspect ratio locks CLS) ── */}
-      <section className="relative overflow-hidden aspect-[4/3] sm:aspect-square bg-zinc-100 dark:bg-[#121212]">
+      <section className="relative overflow-hidden aspect-4/3 sm:aspect-square bg-zinc-100 dark:bg-[#121212]">
         <img
           src={mainImage}
           alt={product.title}
-          {...(priority ? { fetchPriority: "high", loading: "eager" } : { loading: "lazy" })}
+          {...(priority
+            ? { fetchPriority: "high", loading: "eager" }
+            : { loading: "lazy" })}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
 
@@ -134,7 +141,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
           </motion.button>
         )}
 
-        <article className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex items-end sm:items-center justify-end sm:justify-center p-2.5 sm:p-0 gap-2">
+        <article className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex items-end sm:items-center justify-end sm:justify-center p-2.5 sm:p-0 gap-2">
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
@@ -142,7 +149,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
             className="w-9 h-9 sm:w-11 sm:h-11 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg hover:bg-blue-500 transition-colors cursor-pointer"
             title="Add to Cart"
           >
-            <ShoppingCart size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <ShoppingCart size={16} className="sm:w-4.5 sm:h-4.5" />
           </motion.button>
 
           <motion.button
@@ -152,13 +159,13 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
             className="w-9 h-9 sm:w-11 sm:h-11 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl flex items-center justify-center shadow-lg hover:bg-white/20 transition-colors cursor-pointer"
             title="Quick View"
           >
-            <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <Eye size={16} className="sm:w-4.5 sm:h-4.5" />
           </motion.button>
         </article>
 
         {isNewProduct && (
           <article className="absolute top-2.5 left-2.5">
-            <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full backdrop-blur-md border shadow-md bg-black/70 text-blue-400 border-blue-500/30">
+            <span className="text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-full backdrop-blur-md border shadow-md bg-black/70 text-blue-400 border-blue-500/30">
               New Drop
             </span>
           </article>
@@ -168,28 +175,33 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
       {/* ── 2. Card Information Body ── */}
       <section className="p-3.5 sm:p-4 flex flex-col flex-1 justify-between gap-2.5">
         <article className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] sm:text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] truncate max-w-[65%]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 tracking-wide truncate max-w-[65%]">
               {product.category?.name || "General Matrix"}
             </span>
 
-            <div className="flex items-center gap-1 text-amber-500 font-mono text-[10px] shrink-0 font-bold">
+            <div className="flex items-center gap-1 text-amber-500 text-xs shrink-0 font-semibold">
               <Star size={12} className="fill-current" />
               <span>{Number(averageRating).toFixed(1)}</span>
               {reviewCount > 0 && (
-                <span className="text-zinc-400 dark:text-gray-500">({reviewCount})</span>
+                <span className="text-zinc-400 dark:text-gray-500 font-normal">
+                  ({reviewCount})
+                </span>
               )}
             </div>
           </div>
 
-          <h3 className="font-mono font-semibold text-zinc-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          <h3 className="font-semibold text-zinc-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
             {product.title}
           </h3>
         </article>
 
         <article className="space-y-1.5 pt-1.5 border-t border-zinc-200 dark:border-white/5">
           <div className="flex items-center gap-1.5 text-zinc-700 dark:text-gray-300">
-            <Store size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <Store
+              size={12}
+              className="text-blue-600 dark:text-blue-400 shrink-0"
+            />
             <span className="text-[11px] font-medium truncate">
               {product.vendor?.storeName || "Ingeni Official Merchant"}
             </span>
@@ -197,7 +209,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
 
           <div className="flex items-center gap-1.5 text-zinc-500 dark:text-gray-500">
             <MapPin size={12} className="shrink-0" />
-            <span className="text-[10px] font-mono uppercase tracking-wider truncate">
+            <span className="text-[11px] tracking-normal truncate">
               {product.location || "Kigali, Rwanda"}
             </span>
           </div>
@@ -209,7 +221,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
                 to={cleanPhone}
                 productId={product.id}
                 vendorId={resolvedVendorId}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-mono cursor-pointer"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[10px] font-medium cursor-pointer"
               >
                 <MessageCircle size={10} />
                 WhatsApp
@@ -220,7 +232,7 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
                 to={cleanPhone}
                 productId={product.id}
                 vendorId={resolvedVendorId}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all text-[9px] font-mono cursor-pointer"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all text-[10px] font-medium cursor-pointer"
               >
                 <Phone size={10} />
                 Call
@@ -230,18 +242,18 @@ const ProductCard = ({ product, onOpenAuthModal, priority = false }: Props) => {
         </article>
 
         {/* ── 3. Footer: Price & Stock ── */}
-        <article className="pt-2 flex items-center justify-between border-t border-zinc-200 dark:border-white/5 mt-auto">
+        <article className="pt-2 flex items-center justify-between border-t border-zinc-200 dark:border-white/5 mt-auto gap-2">
           <div>
-            <span className="text-[9px] font-mono text-zinc-500 dark:text-gray-500 uppercase tracking-[0.2em] block">
+            <span className="text-[10px] font-medium text-zinc-500 dark:text-gray-500 tracking-wide block">
               Unit Price
             </span>
-            <p className="font-mono font-bold text-zinc-900 dark:text-white text-sm sm:text-base tracking-tight">
+            <p className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base tracking-tight">
               RWF {Number(product.price).toLocaleString()}
             </p>
           </div>
 
           <div
-            className={`text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+            className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${
               product.stock > 0
                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                 : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"

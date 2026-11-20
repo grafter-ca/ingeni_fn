@@ -10,8 +10,8 @@ const FeaturedProducts = () => {
   const { products, isLoading, fetchPublicProducts } = useProductStore();
   const navigate = useNavigate();
 
-  useEffect(() => { 
-    fetchPublicProducts({ limit: 10 }); 
+  useEffect(() => {
+    fetchPublicProducts({ limit: 10 });
   }, [fetchPublicProducts]);
 
   const featured = useMemo(() => products.slice(0, 10), [products]);
@@ -23,7 +23,7 @@ const FeaturedProducts = () => {
           <div className="bg-zinc-100 dark:bg-white/2 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-zinc-200 dark:border-white/5 shadow-inner">
             <PackageX className="text-blue-600 dark:text-blue-400" size={24} />
           </div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500 dark:text-gray-500">
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-gray-500">
             No featured units available in the matrix at the moment.
           </p>
         </div>
@@ -33,12 +33,10 @@ const FeaturedProducts = () => {
 
   return (
     <section className="px-4 md:px-8 py-6 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#050505] relative overflow-hidden transition-colors">
-      
       {/* Subtle Background Glow */}
-      <div className="absolute top-1/3 right-10 w-[500px] h-[300px] bg-blue-600/5 dark:bg-blue-600/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-1/3 right-10 w-125 h-75 bg-blue-600/5 dark:bg-blue-600/10 rounded-full blur-[140px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto relative z-10">
-        
         {/* Section Header */}
         <motion.div
           className="flex items-end justify-between mb-6 flex-wrap gap-4"
@@ -48,23 +46,26 @@ const FeaturedProducts = () => {
           transition={{ duration: 0.6 }}
         >
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 dark:bg-white/[0.04] border border-zinc-200 dark:border-white/10 mb-3 backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 dark:bg-white/4 border border-zinc-200 dark:border-white/10 mb-3 backdrop-blur-md">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-600 dark:text-gray-400 font-bold">
+              <p className="text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-gray-400">
                 Curated Array
               </p>
             </div>
-            <h2 className="font-mono font-black text-2xl md:text-4xl text-zinc-900 dark:text-white tracking-tight uppercase">
+            <h2 className="font-bold text-2xl md:text-4xl text-zinc-900 dark:text-white tracking-tight">
               Featured Matrix
             </h2>
           </div>
 
           <button
             onClick={() => navigate("/products")}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white transition-colors shadow-sm ml-2 cursor-pointer"
+            className="group inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white transition-colors shadow-sm ml-2 cursor-pointer"
           >
             <span>Explore All Products</span>
-            <ArrowRight size={14} className="transform group-hover:translate-x-1 transition-transform" />
+            <ArrowRight
+              size={14}
+              className="transform group-hover:translate-x-1 transition-transform"
+            />
           </button>
         </motion.div>
 

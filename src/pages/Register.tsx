@@ -1,5 +1,5 @@
 // src/pages/Register.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -12,6 +12,9 @@ import {
   Eye,
   EyeOff,
   Link as LinkIcon,
+  Check,
+  Circle,
+  ShieldAlert,
 } from "lucide-react";
 
 interface RegisterPayloadProps {
@@ -24,7 +27,10 @@ interface RegisterPayloadProps {
 }
 
 const IngeniLogo: React.FC = () => (
-  <Link to="/" className="inline-flex flex-col items-center gap-2.5 select-none group">
+  <Link
+    to="/"
+    className="inline-flex flex-col items-center gap-2.5 select-none group"
+  >
     <div className="w-20 h-20 rounded-full overflow-hidden bg-white dark:bg-white/4 border border-zinc-200 dark:border-white/10 p-1 shadow-md">
       <img
         src="/ingeni-logo-2.png"
@@ -70,6 +76,23 @@ const Register: React.FC = () => {
     }
   }, [user, isLoading, navigate]);
 
+  // Live password rule checks
+  const passwordChecks = useMemo(() => {
+    const pw = formData.password;
+    return {
+      minLength: pw.length >= 8,
+      hasUpperAndLower: /[a-z]/.test(pw) && /[A-Z]/.test(pw),
+      hasNumberOrSymbol: /[\d\W]/.test(pw),
+      matchesConfirm: pw.length > 0 && pw === formData.confirmPassword,
+    };
+  }, [formData.password, formData.confirmPassword]);
+
+  const isPasswordStepValid =
+    passwordChecks.minLength &&
+    passwordChecks.hasUpperAndLower &&
+    passwordChecks.hasNumberOrSymbol &&
+    passwordChecks.matchesConfirm;
+
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (localError) setLocalError(null);
@@ -91,13 +114,23 @@ const Register: React.FC = () => {
         setLocalError("Please enter a valid email address.");
         return;
       }
-      if (formData.password.length < 8) {
+      if (!passwordChecks.minLength) {
+        setLocalError("Password must be at least 8 characters long.");
+        return;
+      }
+      if (!passwordChecks.hasUpperAndLower) {
         setLocalError(
-          "Password is too short. It must be at least 8 characters long.",
+          "Password must include both uppercase and lowercase letters.",
         );
         return;
       }
-      if (formData.password !== formData.confirmPassword) {
+      if (!passwordChecks.hasNumberOrSymbol) {
+        setLocalError(
+          "Password must include at least one number or special character.",
+        );
+        return;
+      }
+      if (!passwordChecks.matchesConfirm) {
         setLocalError("Passwords do not match. Please verify and try again.");
         return;
       }
@@ -141,9 +174,22 @@ const Register: React.FC = () => {
         err?.link ||
         "Registration failed. Email might already be in use.";
 
-      setLocalError(
-        Array.isArray(serverMessage) ? serverMessage.join(", ") : serverMessage,
-      );
+      const formattedMessage = Array.isArray(serverMessage)
+        ? serverMessage.join(", ")
+        : String(serverMessage);
+
+      // If the backend rejects the password (e.g., compromised/weak) or email, return user to Step 1
+      const lowerMsg = formattedMessage.toLowerCase();
+      if (
+        lowerMsg.includes("password") ||
+        lowerMsg.includes("compromised") ||
+        lowerMsg.includes("email") ||
+        lowerMsg.includes("user already exists")
+      ) {
+        setStep(1);
+      }
+
+      setLocalError(formattedMessage);
     } finally {
       setLoading(false);
     }
@@ -239,7 +285,7 @@ const Register: React.FC = () => {
                 <Input
                   label=""
                   type="text"
-                  placeholder="e.g. Caleb Habyarimana"
+                  placeholder="e.g. John Doe"
                   value={formData.name}
                   onChange={(val: string) => handleChange("name", val)}
                 />
@@ -267,7 +313,7 @@ const Register: React.FC = () => {
                     <Input
                       label=""
                       type={showPassword ? "text" : "password"}
-                      placeholder="At least 8 characters"
+                      placeholder="Create a strong, unique password"
                       value={formData.password}
                       onChange={(val: string) => handleChange("password", val)}
                     />
@@ -320,7 +366,80 @@ const Register: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-2">
+              {/* Live Password Requirements Checklist */}
+              <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/3 border border-zinc-200 dark:border-white/10 space-y-2">
+                <p className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+                  Password requirements:
+                </p>
+                <ul className="space-y-1.5 text-[11px]">
+                  <li
+                    className={`flex items-center gap-2 transition-colors ${
+                      passwordChecks.minLength
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                        : "text-zinc-500 dark:text-zinc-400"
+                    }`}
+                  >
+                    {passwordChecks.minLength ? (
+                      <Check size={13} className="shrink-0" />
+                    ) : (
+                      <Circle size={13} className="shrink-0 opacity-60" />
+                    )}
+                    <span>At least 8 characters long</span>
+                  </li>
+                  <li
+                    className={`flex items-center gap-2 transition-colors ${
+                      passwordChecks.hasUpperAndLower
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                        : "text-zinc-500 dark:text-zinc-400"
+                    }`}
+                  >
+                    {passwordChecks.hasUpperAndLower ? (
+                      <Check size={13} className="shrink-0" />
+                    ) : (
+                      <Circle size={13} className="shrink-0 opacity-60" />
+                    )}
+                    <span>Uppercase and lowercase letters (A–Z, a–z)</span>
+                  </li>
+                  <li
+                    className={`flex items-center gap-2 transition-colors ${
+                      passwordChecks.hasNumberOrSymbol
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                        : "text-zinc-500 dark:text-zinc-400"
+                    }`}
+                  >
+                    {passwordChecks.hasNumberOrSymbol ? (
+                      <Check size={13} className="shrink-0" />
+                    ) : (
+                      <Circle size={13} className="shrink-0 opacity-60" />
+                    )}
+                    <span>At least one number or special symbol</span>
+                  </li>
+                  <li
+                    className={`flex items-center gap-2 transition-colors ${
+                      passwordChecks.matchesConfirm
+                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                        : "text-zinc-500 dark:text-zinc-400"
+                    }`}
+                  >
+                    {passwordChecks.matchesConfirm ? (
+                      <Check size={13} className="shrink-0" />
+                    ) : (
+                      <Circle size={13} className="shrink-0 opacity-60" />
+                    )}
+                    <span>Passwords match</span>
+                  </li>
+                  <li className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 pt-0.5">
+                    <ShieldAlert size={13} className="shrink-0 text-blue-500" />
+                    <span>Must be unique (not a leaked/common password)</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                className={`pt-1 ${
+                  !isPasswordStepValid ? "opacity-80" : ""
+                }`}
+              >
                 <Button label="Continue" type="submit" />
               </div>
             </>

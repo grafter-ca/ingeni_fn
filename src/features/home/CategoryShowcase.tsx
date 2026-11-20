@@ -56,9 +56,9 @@ const CategoryShowcase = () => {
   };
 
   return (
-    <section className="px-6 py-4 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#050505] relative overflow-hidden transition-colors">
+    <section className="px-6 py-4 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#05 relative overflow-hidden transition-colors">
       {/* Background Glow matching your blue/green/gray theme */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-blue-600/[0.03] dark:bg-emerald-600/[0.03] rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-75 bg-blue-600/3 dark:bg-emerald-600/3 rounded-full blur-[140px] pointer-events-none" />
 
       <article className="max-w-7xl mx-auto relative z-10">
         {/* Section Header */}
@@ -70,7 +70,7 @@ const CategoryShowcase = () => {
           transition={{ duration: 0.6 }}
         >
           <section className="flex flex-col gap-1">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200 dark:border-white/10 mb-3 backdrop-blur-md shadow-inner">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 mb-3 backdrop-blur-md shadow-inner">
               <Layers size={14} className="text-blue-600 dark:text-emerald-400" />
               <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-600 dark:text-gray-300">
                 Explore Marketplace
@@ -90,14 +90,14 @@ const CategoryShowcase = () => {
             <section className="flex items-center gap-2">
               <button
                 onClick={() => scroll("left")}
-                className="p-2 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.02] hover:bg-zinc-100 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-gray-300 transition-colors shadow-sm cursor-pointer"
+                className="p-2 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/2 hover:bg-zinc-100 dark:hover:bg-white/8 text-zinc-700 dark:text-gray-300 transition-colors shadow-sm cursor-pointer"
                 aria-label="Scroll left"
               >
                 <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => scroll("right")}
-                className="p-2 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.02] hover:bg-zinc-100 dark:hover:bg-white/[0.08] text-zinc-700 dark:text-gray-300 transition-colors shadow-sm cursor-pointer"
+                className="p-2 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/2 hover:bg-zinc-100 dark:hover:bg-white/8 text-zinc-700 dark:text-gray-300 transition-colors shadow-sm cursor-pointer"
                 aria-label="Scroll right"
               >
                 <ChevronRight size={18} />
@@ -123,13 +123,13 @@ const CategoryShowcase = () => {
         >
           {isLoading ? (
             Array.from({ length: 6 }).map((_, idx) => (
-              <div key={idx} data-card-item className="min-w-[260px] sm:min-w-[280px] snap-start flex-shrink-0">
+              <div key={idx} data-card-item className="min-w-65 sm:min-w-70 snap-start shrink-0">
                 <CategorySkeleton />
               </div>
             ))
           ) : categories.length === 0 ? (
             <section className="flex gap-5 w-full overflow-x-auto no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-              <div data-card-item className="min-w-[280px] sm:min-w-[320px] p-6 rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0a0a0a] flex flex-col justify-between shrink-0 shadow-sm">
+              <div data-card-item className="min-w-70 sm:min-w-[320px] p-6 rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0a0a0a] flex flex-col justify-between shrink-0 shadow-sm">
                 <div>
                   <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 mb-3">
                     Notice
@@ -148,7 +148,7 @@ const CategoryShowcase = () => {
               <div
                 key={cat.id}
                 data-card-item
-                className="min-w-[260px] sm:min-w-[280px] max-w-[300px] snap-start flex-shrink-0"
+                className="min-w-65 sm:min-w-70 max-w-75 snap-start shrink-0"
               >
                 <CategoryCard
                   id={cat.id}
