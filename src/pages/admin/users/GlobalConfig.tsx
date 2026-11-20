@@ -16,7 +16,7 @@ export interface PlatformConfigState {
   notifications: boolean;
 }
 
-const RAW_API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const RAW_API_BASE = (import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com").replace(/\/+$/, "");
 
 const buildConfigUrl = () => {
   if (!RAW_API_BASE) return "/api/admin/config";

@@ -7,7 +7,7 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
 
 const resolveApiBase = (rawUrl: string): string => {
   if (!rawUrl) {
-    return "http://localhost:8000/api";
+    return "https://ingeri-api.onrender.com/api";
   }
   return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
 };
