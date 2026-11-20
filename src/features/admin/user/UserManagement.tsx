@@ -34,7 +34,7 @@ interface LiveSessionInfo {
   userAgent?: string | null;
 }
 
-const RAW_API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const RAW_API_BASE = (import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com").replace(/\/+$/, "");
 
 const buildUsersUrl = (subPath: string) => {
   const cleanSub = subPath.startsWith("/") ? subPath : `/${subPath}`;

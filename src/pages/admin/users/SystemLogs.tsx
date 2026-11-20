@@ -26,7 +26,7 @@ export interface LiveSystemLog {
   node?: string;
   payloadBytes?: number;
 }
-const RAW_API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const RAW_API_BASE = (import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com").replace(/\/+$/, "");
 
 const buildApiUrl = (path: string) => {
   const cleanPath = `/${path.replace(/^\/+/, "")}`;

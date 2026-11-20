@@ -15,7 +15,7 @@ const resolveFrontendUrl = (): string => {
     return window.location.origin.replace(/\/+$/, "");
   }
 
-  return "http://localhost:5173";
+  return "https://ingeni.onrender.com";
 };
 
 export const authService = {
