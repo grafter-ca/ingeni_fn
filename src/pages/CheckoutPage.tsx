@@ -1,7 +1,8 @@
 // src/pages/CheckoutPage.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCartStore } from "../store/cartStore";
 import { useOrderStore } from "../store/useOrderStore";
+import { useVendorStore } from "../store/vendorStore";
 import CheckoutForm from "../components/forms/ChechoutForm";
 import {
   Headset,
@@ -18,10 +19,16 @@ import type { PaymentMethod } from "../types/api";
 import { useAuthState } from "../context/AuthContext";
 import { PaymentSecurityGateModal } from "../features/auth/PaymentSecurityGateModal";
 
-const CheckoutPage = () => {
-  const { items, clearCart, getTotalPrice, getTotalItems } =
-    useCartStore();
+const DEFAULT_PROVIDER_BY_METHOD: Record<PaymentMethod, string> = {
+  MOBILE_MONEY: "MTN_MOMO",
+  CREDIT_CARD: "CARD",
+  CASH_ON_DELIVERY: "CASH",
+  WORKFORCE_WALLET: "WALLET",
+};
 
+const CheckoutPage = () => {
+  const { items, clearCart, getTotalPrice, getTotalItems } = useCartStore();
+  const { vendors, fetchVendors } = useVendorStore();
   const { user } = useAuthState();
   const [showPaymentGate, setShowPaymentGate] = useState(false);
   const userId = user?.id || null;
@@ -33,12 +40,17 @@ const CheckoutPage = () => {
 
   const guestData = location.state?.guestUser;
 
-  const total = getTotalPrice();
+  const total = Number(getTotalPrice() || 0);
   const totalItems = getTotalItems();
 
-  // Shared payment method state to synchronize the buttons and form selector
   const [selectedPayment, setSelectedPayment] =
     useState<PaymentMethod>("MOBILE_MONEY");
+
+  useEffect(() => {
+    if (vendors.length === 0) {
+      fetchVendors().catch(() => {});
+    }
+  }, [vendors.length, fetchVendors]);
 
   const supportTeam = {
     phone: "+250786015225",
@@ -49,7 +61,10 @@ const CheckoutPage = () => {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#050505] font-poppins flex flex-col items-center justify-center text-gray-900 dark:text-white transition-colors duration-200">
         <h2 className="text-2xl font-bold mb-4">Your cart is empty</h2>
-        <Link to="/products" className="text-blue-600 dark:text-blue-500 hover:underline">
+        <Link
+          to="/products"
+          className="text-blue-600 dark:text-blue-500 hover:underline"
+        >
           Continue Shopping
         </Link>
       </div>
@@ -59,6 +74,24 @@ const CheckoutPage = () => {
   const tax = total * 0.18;
   const shipping = total > 10000 ? 0 : 500; // Free shipping for orders above 10,000 RWF
   const grandTotal = total + tax + shipping;
+
+  // Unique vendors in the current cart using Prisma Vendor fields (storeName, phone)
+  const cartVendors = Array.from(
+    new Map(
+      items.map((item) => {
+        const vendorRecord = vendors.find((v) => v.id === item.vendorId);
+        const key = item.vendorId || item.id;
+        return [
+          key,
+          {
+            id: item.vendorId || key,
+            storeName: vendorRecord?.storeName || "Vendor Store",
+            phone: vendorRecord?.phone || null,
+          },
+        ];
+      })
+    ).values()
+  );
 
   const handlePlaceOrder = async ({
     shippingAddress,
@@ -75,16 +108,20 @@ const CheckoutPage = () => {
     provider: string;
     paymentProofFile?: File;
   }) => {
-    let paymentProofUrl = undefined;
+    let paymentProofUrl: string | undefined = undefined;
     try {
       const validatedItems = items.map((item) => {
-        const cleanId = item.productId ? item.productId.replace("local-", "").replace("fake-", "") : item.id;
+        const cleanId = item.productId
+          ? item.productId.replace("local-", "").replace("fake-", "")
+          : item.id;
         if (!cleanId) {
           throw new Error(`${item.name} is missing productId`);
         }
 
         if (!item.vendorId) {
-          throw new Error(`${item.name} is missing vendorId assignment for multi-vendor distribution`);
+          throw new Error(
+            `${item.name} is missing vendorId assignment for multi-vendor distribution`
+          );
         }
 
         return {
@@ -104,7 +141,7 @@ const CheckoutPage = () => {
         phoneNumber,
         email,
         paymentMethod,
-        provider,
+        provider: provider || DEFAULT_PROVIDER_BY_METHOD[paymentMethod],
         paymentProofUrl,
         totalAmount: grandTotal,
         taxAmount: tax,
@@ -136,7 +173,9 @@ const CheckoutPage = () => {
               <Headset size={24} />
             </div>
             <div>
-              <h2 className="font-bold text-blue-600 dark:text-blue-400">Need Help?</h2>
+              <h2 className="font-bold text-blue-600 dark:text-blue-400">
+                Need Help?
+              </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Contact our support team anytime.
               </p>
@@ -191,7 +230,7 @@ const CheckoutPage = () => {
                 phoneNumber: guestData?.phone || user?.phone || "",
                 email: guestData?.email || user?.email || "",
                 paymentMethod: selectedPayment,
-                provider: selectedPayment === "MOBILE_MONEY" ? "MTN_MOMO" : "STRIPE",
+                provider: DEFAULT_PROVIDER_BY_METHOD[selectedPayment],
               }}
             />
 
@@ -203,22 +242,22 @@ const CheckoutPage = () => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   {
-                    id: "MOBILE_MONEY",
+                    id: "MOBILE_MONEY" as PaymentMethod,
                     label: "MoMo",
                     icon: Smartphone,
                   },
                   {
-                    id: "CREDIT_CARD",
+                    id: "CREDIT_CARD" as PaymentMethod,
                     label: "Card",
                     icon: CreditCard,
                   },
                   {
-                    id: "CASH_ON_DELIVERY",
+                    id: "CASH_ON_DELIVERY" as PaymentMethod,
                     label: "Cash",
                     icon: Banknote,
                   },
                   {
-                    id: "WORKFORCE_WALLET",
+                    id: "WORKFORCE_WALLET" as PaymentMethod,
                     label: "Wallet",
                     icon: Wallet,
                   },
@@ -226,11 +265,7 @@ const CheckoutPage = () => {
                   <button
                     key={method.id}
                     type="button"
-                    onClick={() =>
-                      setSelectedPayment(
-                        method.id as PaymentMethod
-                      )
-                    }
+                    onClick={() => setSelectedPayment(method.id)}
                     className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 cursor-pointer ${
                       selectedPayment === method.id
                         ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20"
@@ -244,59 +279,103 @@ const CheckoutPage = () => {
                   </button>
                 ))}
               </div>
+
+              {selectedPayment === "MOBILE_MONEY" && (
+                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                    MoMo Payment & Vendor Contact Details
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Use your existing MoMo code with the vendor phone number below to pay or verify your order:
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    {cartVendors.map((vendor) => (
+                      <div
+                        key={vendor.id}
+                        className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white/80 dark:bg-black/30 px-3 py-2 rounded-xl border border-gray-200/70 dark:border-white/10"
+                      >
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {vendor.storeName}
+                        </span>
+                        {vendor.phone ? (
+                          <a
+                            href={`tel:${vendor.phone}`}
+                            className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            <Phone size={13} />
+                            {vendor.phone}
+                          </a>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">
+                            No vendor phone — support: {supportTeam.phone}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* RIGHT: Order Summary */}
           <div className="lg:col-span-5">
             <div className="sticky top-24 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-white/5 rounded-3xl p-8 shadow-sm">
-              <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Order Summary</h2>
+              <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">
+                Order Summary
+              </h2>
 
               <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex gap-4 items-center"
-                  >
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-white/10"
-                    />
+                {items.map((item) => {
+                  const itemVendor = vendors.find((v) => v.id === item.vendorId);
+                  const lineTotal = Number(item.price || 0) * item.quantity;
 
-                    <div className="flex-1">
-                      <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-1">
-                        {item.name}
-                      </h3>
-                      <p className="text-xs text-gray-500">
-                        Qty: {item.quantity}
-                      </p>
-                    </div>
+                  return (
+                    <div key={item.id} className="flex gap-4 items-center">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-white/10"
+                      />
 
-                    <div className="font-semibold text-sm text-gray-900 dark:text-white">
-                      RF{" "}
-                      {(
-                        item.price * item.quantity
-                      ).toLocaleString()}
+                      <div className="flex-1">
+                        <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-1">
+                          {item.name}
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Qty: {item.quantity}
+                          {itemVendor?.phone ? ` • Tel: ${itemVendor.phone}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="font-semibold text-sm text-gray-900 dark:text-white">
+                        RF {lineTotal.toLocaleString()}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-gray-200 dark:border-white/5 mt-8 pt-6 space-y-3">
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                   <span>Subtotal</span>
-                  <span className="text-gray-900 dark:text-white font-medium">RF {total.toLocaleString()}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    RF {total.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                   <span>Tax (18%)</span>
-                  <span className="text-gray-900 dark:text-white font-medium">RF {tax.toLocaleString()}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    RF {tax.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                   <span>Delivery</span>
-                  <span className="text-gray-900 dark:text-white font-medium">RF {shipping.toLocaleString()}</span>
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    RF {shipping.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-white/5 pt-4 text-blue-600 dark:text-blue-400">
@@ -313,9 +392,7 @@ const CheckoutPage = () => {
                   onProceedToPayment={() => {
                     setShowPaymentGate(false);
                     document
-                      .querySelector<HTMLFormElement>(
-                        "#checkout-form"
-                      )
+                      .querySelector<HTMLFormElement>("#checkout-form")
                       ?.requestSubmit();
                   }}
                 />
@@ -328,9 +405,7 @@ const CheckoutPage = () => {
                     setShowPaymentGate(true);
                   } else {
                     document
-                      .querySelector<HTMLFormElement>(
-                        "#checkout-form"
-                      )
+                      .querySelector<HTMLFormElement>("#checkout-form")
                       ?.requestSubmit();
                   }
                 }}

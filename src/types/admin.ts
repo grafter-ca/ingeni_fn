@@ -14,9 +14,11 @@ export type StatCardProps = {
 };
 
 export interface TrafficStat {
-  actionType: 'whatsapp' | 'call';
-  count: {
-    id: number;
-  };
+  actionType: "whatsapp" | "call" | (string & {});
+  count:
+    | number
+    | {
+        id?: number;
+        _all?: number;
+      };
 }
-

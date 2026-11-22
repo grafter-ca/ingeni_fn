@@ -1,18 +1,18 @@
 import type { LucideIcon } from "lucide-react";
-import type { Order } from "./api";
+import type { Order, OrderStatus } from "./api";
 
 export interface RegisterProps {
-    name?: string;
-    email?: string;
-    phone?: string;
-    password?: string;
-    country?: string;
-    confirmPassword? : string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  country?: string;
+  confirmPassword?: string;
 }
 
 export interface LoginProps {
-    email?: string;
-    password?: string;
+  email?: string;
+  password?: string;
 }
 
 export interface ButtonProps {
@@ -24,7 +24,7 @@ export interface ButtonProps {
   iconPosition?: "left" | "right";
   onClick?: () => void;
   disabled?: boolean;
-};
+}
 
 export interface ValueProps {
   icon: React.ComponentType<any>;
@@ -38,7 +38,7 @@ export interface ReasonProps {
 }
 
 export type User = {
-  id: string ;
+  id: string;
   name: string;
   email: string;
   image?: string | null;
@@ -53,7 +53,7 @@ export type User = {
 export type CartItem = {
   id: string;
   name: string;
-  price: number;
+  price: number | string;
   quantity: number;
   productId: string;
   image?: string;
@@ -73,8 +73,7 @@ export type AuthAction =
   | { type: "LOGOUT" }
   | { type: "CLEAR_ERROR" };
 
-
-  export interface VendorDashboardData {
+export interface VendorDashboardData {
   stats: {
     revenue: string;
     activeOrders: number;
@@ -94,7 +93,7 @@ export interface ApiVendor {
   isActive: boolean;
   businessDescription?: string;
   description?: string;
-  address?:string;
+  address?: string;
   createdAt: string;
   _count?: {
     products: number;
@@ -108,21 +107,20 @@ export interface VendorMetrics {
   activeOrders: number;
 }
 
-// Added structural interfaces matching our order management pipeline
+// Structural interface matching order management pipeline & Prisma OrderStatus
 export interface ApiOrder {
   id: string;
   orderNumber: string;
-  totalAmount: number;
-  taxAmount?:number;
-  status: 'PENDING' | 'DELIVERED' | 'SHIPPED' | 'CANCELLED';
+  totalAmount: number | string;
+  taxAmount?: number | string;
+  status: OrderStatus | (string & {});
   user?: {
     name: string;
   };
   createdAt: string;
 }
 
-
-export interface ReviewItem  {
+export interface ReviewItem {
   id: string;
   user: string;
   rating: number;
@@ -130,4 +128,4 @@ export interface ReviewItem  {
   createdAt?: string;
   authorName?: string;
   date: string;
-};
+}

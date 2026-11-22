@@ -1,8 +1,9 @@
+// src/types/api.ts
 
 export type ProductFormData = {
   title: string;
-  stock: number;
-  price: number;
+  stock: number | string;
+  price: number | string;
   description: string;
   location: string;
   images: string[];     // Existing image URLs
@@ -16,12 +17,12 @@ export type ApiProduct = {
   origin?: "local" | "fake";
   title: string;
   stock: number;
-  isActive?:boolean;
-  price: number;
-  location?: string;
+  isActive?: boolean;
+  price: number | string;
+  location?: string | null;
   description: string;
   images: string[];
-  imageFiles?: File[]; 
+  imageFiles?: File[];
   category: ApiCategory;
   vendor?: ApiVendor;
   slug?: string;
@@ -39,39 +40,42 @@ export type ApiProduct = {
   createdAt?: string;
   updatedAt?: string;
 };
+
 export type ApiCategory = {
   id: string;
   name: string;
   image: string;
-  imageUrl?: string;     
+  imageUrl?: string;
   description?: string;
-  itemCount?: number;     
-  productsCount?: number; 
+  itemCount?: number;
+  productsCount?: number;
 };
 
-export type ApiVendor ={
+export type ApiVendor = {
   id: string;
   storeName: string;
   email?: string;
   userId?: string;
+  description?: string | null;
   businessDescription?: string | null;
-  address?:string | null;
+  address?: string | null;
   phone?: string | null;
+  logoUrl?: string | null;
   image?: string | null;
   isActive?: boolean;
-}
+};
 
-export type UserRole = "user" | "admin" | "vendor"
-// src/types/api.ts
+export type UserRole = "user" | "admin" | "vendor";
+
 // Auth types
 export type ApiUser = {
-  id: number;
+  id: string;
   name: string;
   email: string;
-  image: string;
-  country?: string;
-  phone?: string;
-  role?: string;
+  image?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  role?: UserRole | string;
 };
 
 export type LoginPayload = {
@@ -87,10 +91,10 @@ export type RegisterPayload = {
 };
 
 export interface RegisterPayloadProps extends RegisterPayload {
- country: string;
- phone: string;
- role?: "USER" | "VENDOR" | "ADMIN"; 
- storeName?: string; 
+  country: string;
+  phone: string;
+  role?: "USER" | "VENDOR" | "ADMIN";
+  storeName?: string;
 }
 
 export type AuthTokens = {
@@ -105,7 +109,7 @@ export type ProductFilters = {
   price_max?: number;
   offset?: number;
   limit?: number;
-  vendorId?:string;
+  vendorId?: string;
 };
 
 export type ProductState = {
@@ -118,9 +122,8 @@ export type ProductState = {
   searchQuery: string;
   isLoading: boolean;
   error: string | null;
-  isFetchingMore: boolean; // For infinite scroll or "Load More" button
+  isFetchingMore: boolean;
   fetchMoreProducts: (filters?: ProductFilters) => Promise<void>;
-
 
   // --- ACTIONS: FETCHING ---
   fetchProducts: (filters?: ProductFilters) => Promise<void>;
@@ -128,9 +131,7 @@ export type ProductState = {
   fetchCategories: () => Promise<void>;
 
   // --- ACTIONS: LOOKUPS (For Cart, Details, and Breadcrumbs) ---
-  /** Gets a category object from the store without a network call */
   getCategoryById: (id: number | string) => ApiCategory | undefined;
-  /** Gets a product from the current list without a network call */
   getLocalProductById: (id: number | string) => ApiProduct | undefined;
 
   // --- ACTIONS: UI LOGIC ---
@@ -139,27 +140,26 @@ export type ProductState = {
   clearFilters: () => void;
 };
 
+export type OrderStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED"
+  | "RETURNED";
 
-export type OrderStatus = 
-  | 'PENDING' 
-  | 'PROCESSING' 
-  | 'SHIPPED' 
-  | 'DELIVERED' 
-  | 'CANCELLED' 
-  | 'RETURNED';
+export type PaymentStatus =
+  | "INITIALIZED"
+  | "SUCCESS"
+  | "PENDING"
+  | "FAILED"
+  | "REFUNDED";
 
-export type PaymentStatus = 
-  | 'INITIALIZED' 
-  | 'SUCCESS' 
-  | 'FAILED' 
-  | 'REFUNDED';
-
-export type PaymentMethod = 
-  | 'MOBILE_MONEY' 
-  | 'CARD' 
-  | 'BANK_TRANSFER'
-  | 'CASH_ON_DELIVERY' 
-  | 'WORKFORCE_WALLET';
+export type PaymentMethod =
+  | "MOBILE_MONEY"
+  | "CREDIT_CARD"
+  | "CASH_ON_DELIVERY"
+  | "WORKFORCE_WALLET";
 
 // Individual Item in an Order
 export interface OrderItem {
@@ -167,32 +167,38 @@ export interface OrderItem {
   orderId: string;
   productId: string;
   vendorId?: string;
-  product: ApiProduct; // Full product details for the UI
+  product: ApiProduct;
   quantity: number;
-  priceAtPurchase: number;
-  vendorEarnings:number;
+  priceAtPurchase: number | string;
+  vendorEarnings: number | string;
 }
 
 // The Main Order Object
 export interface Order {
   id: string;
   orderNumber: string;
-  userId: string;
+  userId: string | null;
   items: OrderItem[];
-  totalAmount: number;
-  taxAmount: number;
-  shippingFees: number;
-  status: OrderStatus;
-  paymentStatus: PaymentStatus;
-  paymentMethod: PaymentMethod;
+  totalAmount: number | string;
+  taxAmount: number | string;
+  shippingFees: number | string;
+  status: OrderStatus | (string & {});
+  paymentStatus: PaymentStatus | (string & {});
+  paymentMethod: PaymentMethod | (string & {});
   shippingAddress: string;
   phoneNumber: string;
   email?: string;
   user?: { id?: string; name?: string; email?: string; phone?: string };
-  vendorId?: string; // Optional: For marketplace orders, to link back to the vendor
-  fulfillments?: Array<{ id: string; vendorId: string; revenue: number | string; status?: string; vendor?: ApiVendor }>; 
-  createdAt: string; // ISO Date string
-  updatedAt: string;
+  vendorId?: string;
+  fulfillments?: Array<{
+    id: string;
+    vendorId: string;
+    revenue: number | string;
+    status?: string;
+    vendor?: ApiVendor;
+  }>;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 // Data Transfer Object for creating an order
@@ -200,7 +206,7 @@ export interface CreateOrderDto {
   items: {
     productId: string;
     quantity: number;
-    vendorId: string; 
+    vendorId: string;
   }[];
   shippingAddress: string;
   phoneNumber: string;
