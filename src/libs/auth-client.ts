@@ -1,14 +1,32 @@
 import { createAuthClient } from "better-auth/react";
-import { 
-  adminClient, 
-  organizationClient, 
+import {
+  adminClient,
+  organizationClient,
   multiSessionClient,
   lastLoginMethodClient,
 } from "better-auth/client/plugins";
 
+const resolveAuthBaseUrl = (): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  if (isDeployedSite && typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  const rawUrl = (
+    import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  return rawUrl.replace(/\/api$/, "");
+};
+
 export const authClient = createAuthClient({
-  // Vite requires the VITE_ prefix to expose env vars to the browser
-  baseURL: import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com",
+  baseURL: resolveAuthBaseUrl(),
   plugins: [
     adminClient(),
     organizationClient(),
@@ -18,7 +36,6 @@ export const authClient = createAuthClient({
   fetchOptions: {
     credentials: "include",
   },
-  // Custom fields that your backend expects in the session user object
   session: {
     user: {
       fields: {

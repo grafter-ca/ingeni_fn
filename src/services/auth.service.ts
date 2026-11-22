@@ -3,6 +3,13 @@ import { authClient } from "../libs/auth-client";
 import type { LoginPayload, RegisterPayloadProps } from "../types/api";
 
 const resolveFrontendUrl = (): string => {
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname === "ingeni.onrender.com"
+  ) {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+
   const envUrl =
     import.meta.env.VITE_FRONTEND_URL ||
     import.meta.env.VITE_APP_URL;

@@ -1,8 +1,24 @@
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = (import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}` 
-  : "https://ingeri-api.onrender.com");
+const resolveSocketUrl = (): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  if (isDeployedSite && typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  const rawEnvUrl = (import.meta.env.VITE_API_URL || "").trim();
+  if (!rawEnvUrl) {
+    return "https://ingeri-api.onrender.com";
+  }
+
+  return rawEnvUrl.replace(/\/+$/, "").replace(/\/api$/, "");
+};
+
+const SOCKET_URL = resolveSocketUrl();
 
 class SocketClient {
   private static instance: SocketClient;
@@ -11,8 +27,8 @@ class SocketClient {
   private constructor() {
     this.socket = io(SOCKET_URL, {
       autoConnect: false,
-
-      path: "/socket.io", 
+      path: "/socket.io",
+      withCredentials: true,
       transports: ["websocket", "polling"],
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,

@@ -9,9 +9,22 @@ const recentClicks = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 1500;
 
 const resolveApiBase = (): string => {
-  const raw =
-    import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com/api";
-  return String(raw).trim().replace(/\/+$/, "");
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  if (isDeployedSite) {
+    return "/api";
+  }
+
+  const raw = (
+    import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com/api"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  return raw.endsWith("/api") ? raw : `${raw}/api`;
 };
 
 export async function trackTrafficClick(

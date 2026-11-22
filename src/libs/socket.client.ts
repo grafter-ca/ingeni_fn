@@ -3,6 +3,15 @@ import { io } from 'socket.io-client';
 const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
 
 const resolveSocketOrigin = (rawUrl: string): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== 'undefined' &&
+      window.location.hostname === 'ingeni.onrender.com');
+
+  if (isDeployedSite && typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
   if (!rawUrl) {
     return 'https://ingeri-api.onrender.com';
   }

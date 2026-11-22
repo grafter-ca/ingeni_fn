@@ -1,4 +1,4 @@
-// src/api/client.ts
+// src/api/vendor.client.ts
 import axios from "axios";
 
 const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
@@ -6,9 +6,21 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
   .replace(/\/+$/, "");
 
 const resolveApiBase = (rawUrl: string): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  // In production on ingeni.onrender.com, always use same-origin /api
+  // so Render's /api/* rewrite proxies requests with first-party cookies
+  if (isDeployedSite) {
+    return "/api";
+  }
+
   if (!rawUrl) {
     return "https://ingeri-api.onrender.com/api";
   }
+
   return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
 };
 

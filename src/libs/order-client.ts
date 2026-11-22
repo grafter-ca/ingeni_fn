@@ -1,14 +1,30 @@
 import { localApi } from "../libs/api";
 import type { Order, CreateOrderDto } from "../types/api";
 
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === "object") {
+    const err = error as {
+      response?: { data?: { message?: string } };
+      message?: string;
+    };
+    if (err.response?.data?.message) {
+      return err.response.data.message;
+    }
+    if (err.message) {
+      return err.message;
+    }
+  }
+  return fallback;
+}
+
 export const OrderClient = {
   // --- CREATE ORDER ---
   async create(orderData: CreateOrderDto): Promise<Order> {
     try {
       return await localApi.post<Order>("/orders", orderData);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Order Creation Error:", error);
-      throw new Error(error?.response?.data?.message || "Could not process your order.");
+      throw new Error(extractErrorMessage(error, "Could not process your order."));
     }
   },
 
@@ -32,13 +48,17 @@ export const OrderClient = {
   },
 
   // --- SUBMIT PAYMENT PROOF (Added) ---
-  async submitPaymentProof(orderId: string, proofUrl: string, transactionReference?: string): Promise<Order> {
+  async submitPaymentProof(
+    orderId: string,
+    proofUrl: string,
+    transactionReference?: string
+  ): Promise<Order> {
     try {
       const payload = { proofUrl, transactionReference };
       return await localApi.post<Order>(`/orders/${orderId}/payment-proof`, payload);
-    } catch (error: any) {
-      console.error("Payment Proof Submission Error:", error?.response?.data || error.message);
-      throw new Error(error?.response?.data?.message || "Failed to submit payment proof.");
+    } catch (error) {
+      console.error("Payment Proof Submission Error:", error);
+      throw new Error(extractErrorMessage(error, "Failed to submit payment proof."));
     }
   },
 
@@ -46,19 +66,22 @@ export const OrderClient = {
   async getVendorOrders(): Promise<Order[]> {
     try {
       return await localApi.get<Order[]>("/orders/vendor/dashboard");
-    } catch (error: any) {
-      console.error(error);
-      throw new Error(error?.response?.data?.message || "Unauthorized: Vendor access only.");
+    } catch (error) {
+      console.error("Fetch Vendor Orders Error:", error);
+      throw new Error(extractErrorMessage(error, "Unauthorized: Vendor access only."));
     }
   },
 
   // --- ADMIN ORDERS ---
   async getAllOrders(status?: string): Promise<Order[]> {
     try {
-      return await localApi.get<Order[]>("/orders/admin/all", status ? { status } : {});
-    } catch (error: any) {
-      console.error(error);
-      throw new Error(error?.response?.data?.message || "Failed to fetch all orders.");
+      return await localApi.get<Order[]>(
+        "/orders/admin/all",
+        status ? { status } : {}
+      );
+    } catch (error) {
+      console.error("Fetch All Orders Error:", error);
+      throw new Error(extractErrorMessage(error, "Failed to fetch all orders."));
     }
   },
 
@@ -67,9 +90,9 @@ export const OrderClient = {
     try {
       const payload = { status: status.toUpperCase() };
       return await localApi.patch<Order>(`/orders/${orderId}/status`, payload);
-    } catch (error: any) {
-      console.error("Status Update Error:", error?.response?.data || error.message);
-      throw new Error(error?.response?.data?.message || "Failed to update order status.");
+    } catch (error) {
+      console.error("Status Update Error:", error);
+      throw new Error(extractErrorMessage(error, "Failed to update order status."));
     }
   },
 
@@ -78,9 +101,9 @@ export const OrderClient = {
     try {
       const payload = { paymentStatus: paymentStatus.toUpperCase() };
       return await localApi.patch<Order>(`/orders/${orderId}/payment-status`, payload);
-    } catch (error: any) {
-      console.error("Payment Status Update Error:", error?.response?.data || error.message);
-      throw new Error(error?.response?.data?.message || "Failed to update payment status.");
+    } catch (error) {
+      console.error("Payment Status Update Error:", error);
+      throw new Error(extractErrorMessage(error, "Failed to update payment status."));
     }
   },
 };
