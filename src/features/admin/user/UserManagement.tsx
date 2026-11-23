@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   UserCog,
   Search,
@@ -34,17 +34,36 @@ interface LiveSessionInfo {
   userAgent?: string | null;
 }
 
-const RAW_API_BASE = (import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com").replace(/\/+$/, "");
+const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
 
-const buildUsersUrl = (subPath: string) => {
-  const cleanSub = subPath.startsWith("/") ? subPath : `/${subPath}`;
-  if (!RAW_API_BASE) return `/api/users${cleanSub}`;
-  if (RAW_API_BASE.endsWith("/api")) {
-    return `${RAW_API_BASE}/users${cleanSub}`;
+const resolveApiBase = (rawUrl: string): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  if (isDeployedSite) {
+    return "/api";
   }
-  return `${RAW_API_BASE}/api/users${cleanSub}`;
+
+  if (!rawUrl) {
+    return "https://ingeri-api.onrender.com/api";
+  }
+
+  return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
 };
 
+const API_BASE = resolveApiBase(RAW_VITE_API_URL);
+
+const buildUsersUrl = (subPath: string) => {
+  const cleanBase = API_BASE.replace(/\/+$/, "");
+  const cleanSub = subPath.startsWith("/") ? subPath : `/${subPath}`;
+  return cleanBase.endsWith("/api")
+    ? `${cleanBase}/users${cleanSub}`
+    : `${cleanBase}/api/users${cleanSub}`;
+};
 
 const UserManagementPage = () => {
   const authContext = useAuthActions() as any;
@@ -67,6 +86,7 @@ const UserManagementPage = () => {
   const [liveList, setLiveList] = useState<LiveSessionInfo[]>([]);
   const [liveSessionsCount, setLiveSessionsCount] = useState(0);
   const [sessionEndpointNote, setSessionEndpointNote] = useState<string>("");
+  const sessionAbortRef = useRef<AbortController | null>(null);
 
   const [query, setQuery] = useState<{
     limit: number;
@@ -92,8 +112,7 @@ const UserManagementPage = () => {
         lastActiveAt: new Date().toISOString(),
         ipAddress: null,
         locationLabel:
-          Intl.DateTimeFormat().resolvedOptions().timeZone ||
-          "Active Session",
+          Intl.DateTimeFormat().resolvedOptions().timeZone || "Active Session",
         userAgent:
           typeof navigator !== "undefined" ? navigator.userAgent : null,
       },
@@ -101,11 +120,16 @@ const UserManagementPage = () => {
   }, [currentSessionUser]);
 
   const loadLiveSessions = useCallback(async () => {
+    sessionAbortRef.current?.abort();
+    const controller = new AbortController();
+    sessionAbortRef.current = controller;
+
     setSessionEndpointNote("");
     try {
       const endpoint = `${buildUsersUrl("/live-sessions")}?windowMinutes=60`;
       const res = await fetch(endpoint, {
         credentials: "include",
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -144,7 +168,9 @@ const UserManagementPage = () => {
               entry.userAgent ?? entry.latestSession?.userAgent ?? null,
           };
         })
-        .filter((x): x is NonNullable<typeof x> => Boolean(x)) as LiveSessionInfo[];
+        .filter(
+          (x): x is NonNullable<typeof x> => Boolean(x),
+        ) as LiveSessionInfo[];
 
       if (normalized.length === 0 && currentSessionUser?.id) {
         const fallbackList = buildFallbackSession();
@@ -162,6 +188,7 @@ const UserManagementPage = () => {
         );
       }
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       console.error("Failed to fetch live sessions:", err);
       const fallbackList = buildFallbackSession();
       setLiveList(fallbackList);
@@ -205,7 +232,10 @@ const UserManagementPage = () => {
     const interval = setInterval(() => {
       void loadLiveSessions();
     }, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      sessionAbortRef.current?.abort();
+    };
   }, [loadLiveSessions]);
 
   const liveByUserId = useMemo(() => {

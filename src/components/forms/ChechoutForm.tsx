@@ -356,7 +356,7 @@ const CheckoutForm = ({
           </div>
 
           <div>
-            <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold flex items-center gap-2">
+            <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold md:flex items-center gap-2">
               <Upload size={14} /> Upload Payment Screenshot Proof
             </label>
             <input

@@ -1144,19 +1144,38 @@ export default function AdminOrders() {
         )}
       </div>
 
-      {/* Order Detail Drawer / Modal */}
+{/* Order Detail Drawer / Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-detail-modal-title"
+          onClick={() => setSelectedOrder(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setSelectedOrder(null);
+          }}
+          tabIndex={-1}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-zinc-900 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-800 pb-4">
               <div>
-                <h3 className="text-lg font-extrabold text-zinc-100">
+                <h3
+                  id="order-detail-modal-title"
+                  className="text-lg font-extrabold text-zinc-100"
+                >
                   Order {getOrderCode(selectedOrder)}
                 </h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
                   Payment Method:{" "}
                   <strong className="text-zinc-200">
-                    {getPaymentMethodLabel((selectedOrder as any).paymentMethod)}
+                    {getPaymentMethodLabel(
+                      (selectedOrder as { paymentMethod?: string })
+                        .paymentMethod,
+                    )}
                   </strong>{" "}
                   · Total:{" "}
                   <strong className="text-emerald-400">
@@ -1167,52 +1186,78 @@ export default function AdminOrders() {
 
               <button
                 type="button"
+                aria-label="Close order details"
                 onClick={() => setSelectedOrder(null)}
-                className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
+                className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors cursor-pointer shrink-0"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-3 items-center justify-between bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4">
-              <div className="space-y-1">
-                <p className="text-xs font-bold uppercase text-zinc-400">
-                  Fulfillment Status
-                </p>
-                <select
-                  disabled={updatingId === selectedOrder.id}
-                  value={selectedOrder.status}
-                  onChange={(e) =>
-                    void handleStatusChange(selectedOrder, e.target.value)
-                  }
-                  className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-zinc-100 cursor-pointer"
+            <div className="flex flex-wrap gap-4 items-center justify-between bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4">
+              <div className="space-y-1.5 min-w-45">
+                <label
+                  htmlFor="fulfillment-status-select"
+                  className="block text-xs font-bold uppercase tracking-wider text-zinc-400"
                 >
-                  {STATUS_OPTIONS.filter((s) => s !== "ALL").map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
+                  Fulfillment Status
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    id="fulfillment-status-select"
+                    disabled={updatingId === selectedOrder.id}
+                    value={selectedOrder.status}
+                    onChange={(e) =>
+                      void handleStatusChange(selectedOrder, e.target.value)
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 focus:border-zinc-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-zinc-100 disabled:opacity-50 cursor-pointer"
+                  >
+                    {STATUS_OPTIONS.filter((s) => s !== "ALL").map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                  {updatingId === selectedOrder.id && (
+                    <span className="text-[11px] text-zinc-400">
+                      Saving…
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-xs font-bold uppercase text-zinc-400">
-                  Payment Status
-                </p>
-                <select
-                  disabled={updatingPaymentId === selectedOrder.id}
-                  value={selectedOrder.paymentStatus}
-                  onChange={(e) =>
-                    void handlePaymentStatusChange(selectedOrder, e.target.value)
-                  }
-                  className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-zinc-100 cursor-pointer"
+              <div className="space-y-1.5 min-w-45">
+                <label
+                  htmlFor="payment-status-select"
+                  className="block text-xs font-bold uppercase tracking-wider text-zinc-400"
                 >
-                  {PAYMENT_STATUS_OPTIONS.map((ps) => (
-                    <option key={ps} value={ps}>
-                      {ps}
-                    </option>
-                  ))}
-                </select>
+                  Payment Status
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    id="payment-status-select"
+                    disabled={updatingPaymentId === selectedOrder.id}
+                    value={selectedOrder.paymentStatus}
+                    onChange={(e) =>
+                      void handlePaymentStatusChange(
+                        selectedOrder,
+                        e.target.value,
+                      )
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 focus:border-zinc-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-zinc-100 disabled:opacity-50 cursor-pointer"
+                  >
+                    {PAYMENT_STATUS_OPTIONS.map((ps) => (
+                      <option key={ps} value={ps}>
+                        {ps}
+                      </option>
+                    ))}
+                  </select>
+                  {updatingPaymentId === selectedOrder.id && (
+                    <span className="text-[11px] text-zinc-400">
+                      Saving…
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1220,35 +1265,44 @@ export default function AdminOrders() {
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
                 Vendor &amp; Item Breakdown
               </h4>
-              {buildVendorBreakdown(selectedOrder).map((group) => (
-                <div
-                  key={group.vendorName}
-                  className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 space-y-2"
-                >
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-200">
-                    <span>{group.vendorName}</span>
-                    <span>{formatRwf(group.revenue)}</span>
-                  </div>
-                  <div className="divide-y divide-zinc-800/60 text-xs text-zinc-400">
-                    {group.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="py-1.5 flex items-center justify-between"
-                      >
-                        <span>
-                          {item.product?.title || "Product"} × {item.quantity}
-                        </span>
-                        <span>
-                          {formatRwf(
-                            Number(item.priceAtPurchase || 0) *
-                              Number(item.quantity || 0),
-                          )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+
+              {buildVendorBreakdown(selectedOrder).length === 0 ? (
+                <div className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 text-xs text-zinc-400">
+                  No items found for this order.
                 </div>
-              ))}
+              ) : (
+                buildVendorBreakdown(selectedOrder).map((group) => (
+                  <div
+                    key={group.vendorName}
+                    className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-zinc-200">
+                      <span>{group.vendorName}</span>
+                      <span className="text-emerald-400">
+                        {formatRwf(group.revenue)}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-zinc-800/60 text-xs text-zinc-400">
+                      {group.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="py-1.5 flex items-center justify-between gap-4"
+                        >
+                          <span className="truncate">
+                            {item.product?.title || "Product"} × {item.quantity}
+                          </span>
+                          <span className="shrink-0 text-zinc-300">
+                            {formatRwf(
+                              Number(item.priceAtPurchase || 0) *
+                                Number(item.quantity || 0),
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
