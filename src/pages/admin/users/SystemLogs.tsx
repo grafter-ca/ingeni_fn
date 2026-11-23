@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Terminal,
   Download,
@@ -26,24 +26,39 @@ export interface LiveSystemLog {
   node?: string;
   payloadBytes?: number;
 }
-const RAW_API_BASE = (import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com").replace(/\/+$/, "");
+
+const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
+
+const resolveApiBase = (rawUrl: string): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  if (isDeployedSite) {
+    return "/api";
+  }
+
+  if (!rawUrl) {
+    return "https://ingeri-api.onrender.com/api";
+  }
+
+  return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
+};
+
+const API_BASE = resolveApiBase(RAW_VITE_API_URL);
 
 const buildApiUrl = (path: string) => {
-  const cleanPath = `/${path.replace(/^\/+/, "")}`;
-  const apiPath =
-    cleanPath === "/api" || cleanPath.startsWith("/api/")
-      ? cleanPath
-      : `/api${cleanPath}`;
+  const cleanBase = API_BASE.replace(/\/+$/, "");
+  let cleanPath = path.startsWith("/") ? path : `/${path}`;
 
-  if (!RAW_API_BASE) {
-    return apiPath;
+  if (cleanBase.endsWith("/api") && cleanPath.startsWith("/api/")) {
+    cleanPath = cleanPath.slice(4);
   }
 
-  if (RAW_API_BASE.endsWith("/api") && apiPath.startsWith("/api/")) {
-    return `${RAW_API_BASE}${apiPath.slice(4)}`;
-  }
-
-  return `${RAW_API_BASE}${apiPath}`;
+  return `${cleanBase}${cleanPath}`;
 };
 
 const SystemLogs = () => {
@@ -55,18 +70,21 @@ const SystemLogs = () => {
   const [activeMetric, setActiveMetric] = useState<"requests" | "bandwidth">(
     "requests",
   );
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchLiveLogs = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setStatusNote("");
     try {
-      const targetUrl = buildApiUrl("/api/admin/logs?limit=200");
-      console.log("Fetching live logs from:", targetUrl);
+      const targetUrl = buildApiUrl("/admin/logs?limit=200");
       const res = await fetch(targetUrl, {
         credentials: "include",
+        signal: controller.signal,
       });
-      console.log(" api url ",targetUrl)
-
 
       if (!res.ok) {
         setLogs([]);
@@ -82,10 +100,10 @@ const SystemLogs = () => {
       const rawList = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload?.logs)
-        ? payload.logs
-        : [];
+          ? payload.data
+          : Array.isArray(payload?.logs)
+            ? payload.logs
+            : [];
 
       const normalized: LiveSystemLog[] = rawList.map(
         (entry: any, idx: number) => ({
@@ -105,19 +123,27 @@ const SystemLogs = () => {
 
       setLogs(normalized);
       if (normalized.length === 0) {
-        setStatusNote("Connected to live log endpoint — 0 log entries in database.");
+        setStatusNote(
+          "Connected to live log endpoint — 0 log entries in database.",
+        );
       }
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       console.error("Error fetching live logs:", err);
       setLogs([]);
       setStatusNote(err?.message || "Unable to reach live logs endpoint.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void fetchLiveLogs();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [fetchLiveLogs]);
 
   const filteredLogs = useMemo(() => {
@@ -268,7 +294,7 @@ const SystemLogs = () => {
       )}
 
       {/* Live Event Chart */}
-      <div className="bg-[#0a0a0a] border border-white/10 rounded-4xl p-8 relative overflow-hidden shadow-2xl">
+      <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 relative overflow-hidden shadow-2xl">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white">
@@ -356,7 +382,7 @@ const SystemLogs = () => {
       </div>
 
       {/* Terminal View */}
-      <div className="bg-[#050505] border border-white/10 rounded-4xl overflow-hidden shadow-2xl relative">
+      <div className="bg-[#050505] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative">
         <div className="absolute top-0 right-0 p-8 opacity-[0.02] pointer-events-none">
           <Terminal size={180} />
         </div>
@@ -398,8 +424,8 @@ const SystemLogs = () => {
                       log.level === "ERROR" || log.level === "CRITICAL"
                         ? "bg-red-500/10 text-red-500"
                         : log.level === "WARN"
-                        ? "bg-amber-500/10 text-amber-500"
-                        : "bg-blue-500/10 text-blue-500"
+                          ? "bg-amber-500/10 text-amber-500"
+                          : "bg-blue-500/10 text-blue-500"
                     }`}
                   >
                     {log.level}

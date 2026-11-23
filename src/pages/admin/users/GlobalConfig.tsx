@@ -16,14 +16,34 @@ export interface PlatformConfigState {
   notifications: boolean;
 }
 
-const RAW_API_BASE = (import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com").replace(/\/+$/, "");
+const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
+
+const resolveApiBase = (rawUrl: string): string => {
+  const isDeployedSite =
+    import.meta.env.PROD ||
+    (typeof window !== "undefined" &&
+      window.location.hostname === "ingeni.onrender.com");
+
+  if (isDeployedSite) {
+    return "/api";
+  }
+
+  if (!rawUrl) {
+    return "https://ingeri-api.onrender.com/api";
+  }
+
+  return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
+};
+
+const API_BASE = resolveApiBase(RAW_VITE_API_URL);
 
 const buildConfigUrl = () => {
-  if (!RAW_API_BASE) return "/api/admin/config";
-  if (RAW_API_BASE.endsWith("/api")) {
-    return `${RAW_API_BASE}/admin/config`;
-  }
-  return `${RAW_API_BASE}/api/admin/config`;
+  const cleanBase = API_BASE.replace(/\/+$/, "");
+  return cleanBase.endsWith("/api")
+    ? `${cleanBase}/admin/config`
+    : `${cleanBase}/api/admin/config`;
 };
 
 const DEFAULT_CONFIG: PlatformConfigState = {
@@ -39,6 +59,9 @@ const normalizeConfig = (data: any): PlatformConfigState => ({
   notifications:
     data?.notifications !== undefined ? Boolean(data.notifications) : true,
 });
+
+const extractConfigData = (payload: any) =>
+  payload?.data ?? payload?.config ?? payload;
 
 const GlobalConfig = () => {
   const [configs, setConfigs] = useState<PlatformConfigState>(DEFAULT_CONFIG);
@@ -61,15 +84,14 @@ const GlobalConfig = () => {
       if (!res.ok) {
         const message =
           res.status === 404
-            ? "Endpoint GET /admin/config is not yet exposed on the backend."
+            ? "Endpoint GET /api/admin/config is not yet exposed on the backend."
             : `Failed to fetch live configuration (HTTP ${res.status}).`;
         setSyncError(message);
         return;
       }
 
       const payload = await res.json();
-      const data = payload?.data ?? payload;
-      const normalized = normalizeConfig(data);
+      const normalized = normalizeConfig(extractConfigData(payload));
       setConfigs(normalized);
       setSavedConfigs(normalized);
     } catch (err: any) {
@@ -116,12 +138,12 @@ const GlobalConfig = () => {
       let nextState = configs;
       try {
         const payload = await res.json();
-        const data = payload?.data ?? payload;
+        const data = extractConfigData(payload);
         if (data && typeof data === "object") {
           nextState = normalizeConfig({ ...configs, ...data });
         }
       } catch {
-        // 204 or plain response still counts as committed
+        // 204 or non-JSON response still counts as committed
       }
 
       setConfigs(nextState);
@@ -153,7 +175,8 @@ const GlobalConfig = () => {
             SYSTEM CONFIGURATION
           </h2>
           <p className="text-gray-500 text-sm">
-            Manage live platform variables and security overrides via cookie-authenticated API.
+            Manage live platform variables and security overrides via
+            cookie-authenticated API.
           </p>
         </div>
 
@@ -202,7 +225,9 @@ const GlobalConfig = () => {
       <div className="pt-8 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-xs font-mono">
           {isDirty ? (
-            <span className="text-amber-400">Unsaved changes pending commit</span>
+            <span className="text-amber-400">
+              Unsaved changes pending commit
+            </span>
           ) : (
             <span className="text-emerald-400 inline-flex items-center gap-1.5">
               <CheckCircle2 size={14} /> Synced with server
@@ -256,9 +281,12 @@ const ConfigItem = ({
   active,
   onClick,
 }: ConfigItemProps) => (
-  <div
+  <button
+    type="button"
+    role="switch"
+    aria-checked={active}
     onClick={onClick}
-    className="flex items-center justify-between p-6 bg-[#0a0a0a] border border-white/5 rounded-4xl hover:border-white/10 transition-colors cursor-pointer select-none"
+    className="w-full text-left flex items-center justify-between p-6 bg-[#0a0a0a] border border-white/5 rounded-3xl hover:border-white/10 transition-colors cursor-pointer select-none"
   >
     <div className="flex items-center gap-5">
       <div className="p-4 bg-white/5 rounded-2xl text-blue-500 border border-white/5">
@@ -271,20 +299,21 @@ const ConfigItem = ({
         <p className="text-xs text-gray-500 font-medium mt-0.5">{desc}</p>
       </div>
     </div>
-    <div
-      className={`w-14 h-8 rounded-full p-1 transition-colors border ${
+    <span
+      aria-hidden="true"
+      className={`w-14 h-8 rounded-full p-1 transition-colors border shrink-0 flex items-center ${
         active
           ? "bg-blue-600 border-blue-400"
           : "bg-gray-900 border-white/10"
       }`}
     >
-      <div
+      <span
         className={`w-5 h-5 bg-white rounded-full shadow-lg transform transition-transform ${
           active ? "translate-x-6" : "translate-x-0"
         }`}
       />
-    </div>
-  </div>
+    </span>
+  </button>
 );
 
 export default GlobalConfig;
