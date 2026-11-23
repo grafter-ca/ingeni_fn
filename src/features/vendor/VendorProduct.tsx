@@ -370,7 +370,7 @@ export const VendorProduct = () => {
                           role="switch"
                           aria-checked={isVisible}
                           aria-label={`Toggle visibility for ${product.title}`}
-                          disabled={isToggling}
+                          disabled={true}
                           onClick={() => void handleToggleVisibility(product)}
                           title={
                             isVisible
@@ -414,6 +414,7 @@ export const VendorProduct = () => {
                             type="button"
                             onClick={() => handleDelete(product.id)}
                             title="Delete Product"
+                            disabled={isToggling}
                             className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition cursor-pointer"
                           >
                             <Trash2 size={14} />
