@@ -135,6 +135,41 @@ export default function AdminOrders() {
     return "Global Marketplace";
   };
 
+const resolveItemVendorDisplay = (
+  item: any,
+  order: any,
+): { name: string; meta?: string } => {
+  const orderVendors = Array.isArray(order?.vendors) ? order.vendors : [];
+  const vendorId =
+    item?.vendorId ||
+    item?.product?.vendorId ||
+    item?.vendor?.id ||
+    item?.product?.vendor?.id;
+
+  const matchedVendor = vendorId
+    ? orderVendors.find((v: any) => v?.id === vendorId)
+    : undefined;
+
+  const vendorObj =
+    item?.vendor || item?.product?.vendor || matchedVendor || undefined;
+
+  const name =
+    vendorObj?.businessName ||
+    vendorObj?.storeName ||
+    vendorObj?.name ||
+    item?.vendorName ||
+    item?.product?.vendorName ||
+    order?.vendor?.businessName ||
+    order?.vendor?.storeName ||
+    order?.vendor?.name ||
+    "Unassigned Vendor";
+
+  const metaParts = [vendorObj?.phone, vendorObj?.email].filter(Boolean);
+  const meta = metaParts.length > 0 ? metaParts.join(" · ") : undefined;
+
+  return { name, meta };
+};
+
   const getOrderCommissionState = (order: Order) => {
     const total = Number(order.totalAmount || 0);
     const isReturned =
@@ -1262,48 +1297,74 @@ export default function AdminOrders() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Vendor &amp; Item Breakdown
-              </h4>
+  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+    Vendor &amp; Item Breakdown
+  </h4>
 
-              {buildVendorBreakdown(selectedOrder).length === 0 ? (
-                <div className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 text-xs text-zinc-400">
-                  No items found for this order.
-                </div>
-              ) : (
-                buildVendorBreakdown(selectedOrder).map((group) => (
-                  <div
-                    key={group.vendorName}
-                    className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 space-y-2"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-zinc-200">
-                      <span>{group.vendorName}</span>
-                      <span className="text-emerald-400">
-                        {formatRwf(group.revenue)}
-                      </span>
-                    </div>
-                    <div className="divide-y divide-zinc-800/60 text-xs text-zinc-400">
-                      {group.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="py-1.5 flex items-center justify-between gap-4"
-                        >
-                          <span className="truncate">
-                            {item.product?.title || "Product"} × {item.quantity}
-                          </span>
-                          <span className="shrink-0 text-zinc-300">
-                            {formatRwf(
-                              Number(item.priceAtPurchase || 0) *
-                                Number(item.quantity || 0),
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+  {buildVendorBreakdown(selectedOrder).length === 0 ? (
+    <div className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 text-xs text-zinc-400">
+      No items found for this order.
+    </div>
+  ) : (
+    buildVendorBreakdown(selectedOrder).map((group) => (
+      <div
+        key={group.vendorName}
+        className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 space-y-2.5"
+      >
+        <div className="flex items-start justify-between gap-3 text-xs font-bold text-zinc-200">
+          <div>
+            <span>{group.vendorName}</span>
+            {group.vendorName && (
+              <p className="text-[11px] font-normal text-zinc-400 mt-0.5">
+                {group.vendorName}
+              </p>
+            )}
+          </div>
+          <span className="text-emerald-400 shrink-0">
+            {formatRwf(group.revenue)}
+          </span>
+        </div>
+
+        <div className="divide-y divide-zinc-800/60 text-xs text-zinc-400">
+          {group.items.map((item: any) => {
+            const itemVendor = resolveItemVendorDisplay(item, selectedOrder);
+            const lineAmount =
+              Number(item.priceAtPurchase || 0) * Number(item.quantity || 0);
+
+            return (
+              <div
+                key={item.id}
+                className="py-2 flex items-center justify-between gap-4"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="text-zinc-200 font-medium truncate">
+                    {item.product?.title || item.title || "Product"} ×{" "}
+                    {item.quantity}
                   </div>
-                ))
-              )}
-            </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                    <Store size={11} className="text-emerald-400 shrink-0" />
+                    <span className="truncate font-medium text-zinc-300">
+                      {itemVendor.name}
+                    </span>
+                    {itemVendor.meta && (
+                      <span className="text-zinc-500 truncate">
+                        ({itemVendor.meta})
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <span className="shrink-0 font-semibold text-zinc-200">
+                  {formatRwf(lineAmount)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ))
+  )}
+</div>
           </div>
         </div>
       )}

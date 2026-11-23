@@ -1,6 +1,15 @@
 // components/vendor/VendorProduct.tsx
 import { useEffect, useState } from "react";
-import { Package, Plus, Search, Pencil, Trash2, AlertCircle } from "lucide-react";
+import {
+  Package,
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  AlertCircle,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { useProductStore } from "../../store/productStore";
 import { useVendorStore } from "../../store/vendorStore";
 import { useCategoryStore } from "../../store/categoryStore";
@@ -8,7 +17,14 @@ import { useAuthState } from "../../context/AuthContext";
 import { VendorProductModal } from "../../components/forms/VendorProductModal";
 
 export const VendorProduct = () => {
-  const { products, fetchVendorProducts, removeProduct, addProduct, updateProduct } = useProductStore() as any;
+  const {
+    products,
+    fetchVendorProducts,
+    removeProduct,
+    addProduct,
+    updateProduct,
+    setProducts,
+  } = useProductStore() as any;
   const { selectedVendor, fetchVendorById } = useVendorStore();
   const { categories, fetchCategories } = useCategoryStore() as any;
   const { user } = useAuthState();
@@ -18,6 +34,8 @@ export const VendorProduct = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [togglingIds, setTogglingIds] = useState<Record<string, boolean>>({});
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   const userId = user?.id;
   const vendorId = selectedVendor?.id ?? "";
@@ -60,12 +78,66 @@ export const VendorProduct = () => {
 
   const filteredProducts = safeProducts.filter((product: any) => {
     const matchesSearch =
-      (product?.title && product.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (product?.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      (product?.title &&
+        product.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (product?.description &&
+        product.description.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesCategory =
       selectedCategory === "ALL" || product.categoryId === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const handleToggleVisibility = async (product: any) => {
+    const currentActive = Boolean(product.isActive);
+    const nextActive = !currentActive;
+    const previousProducts = Array.isArray(products) ? [...products] : [];
+
+    setToggleError(null);
+    setTogglingIds((prev) => ({ ...prev, [product.id]: true }));
+
+    if (typeof setProducts === "function") {
+      setProducts(
+        previousProducts.map((item: any) =>
+          item.id === product.id ? { ...item, isActive: nextActive } : item,
+        ),
+      );
+    } else {
+      product.isActive = nextActive;
+    }
+
+    try {
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to update visibility (${res.status})`);
+      }
+
+      if (vendorId && typeof fetchVendorProducts === "function") {
+        await fetchVendorProducts(vendorId);
+      }
+    } catch (err) {
+      if (typeof setProducts === "function") {
+        setProducts(previousProducts);
+      } else {
+        product.isActive = currentActive;
+      }
+      setToggleError(
+        err instanceof Error
+          ? err.message
+          : "Could not update product visibility.",
+      );
+    } finally {
+      setTogglingIds((prev) => {
+        const next = { ...prev };
+        delete next[product.id];
+        return next;
+      });
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this product?")) {
@@ -108,7 +180,7 @@ export const VendorProduct = () => {
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header & Actions Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 rounded-3xl bg-gradient-to-r from-blue-900/40 via-[#0c0c0e] to-[#0c0c0e] border border-white/10 shadow-2xl relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 rounded-3xl bg-linear-to-r from-blue-900/40 via-[#0c0c0e] to-[#0c0c0e] border border-white/10 shadow-2xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono text-[10px] uppercase tracking-wider mb-3">
@@ -139,7 +211,10 @@ export const VendorProduct = () => {
       {/* Filters & Search Toolbar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-[#0c0c0e] border border-white/10 shadow-xl">
         <div className="relative w-full sm:w-80">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"
+          />
           <input
             type="text"
             placeholder="Search products by title..."
@@ -150,7 +225,9 @@ export const VendorProduct = () => {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="font-mono text-[10px] text-gray-500 uppercase">Filter:</span>
+          <span className="font-mono text-[10px] text-gray-500 uppercase">
+            Filter:
+          </span>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -167,6 +244,19 @@ export const VendorProduct = () => {
         </div>
       </div>
 
+      {toggleError && (
+        <div className="px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 font-mono text-xs text-rose-300 flex items-center justify-between gap-4">
+          <span>{toggleError}</span>
+          <button
+            type="button"
+            onClick={() => setToggleError(null)}
+            className="text-[11px] font-semibold underline cursor-pointer shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Products Grid Table */}
       <div className="rounded-3xl bg-[#0c0c0e] border border-white/10 p-6 shadow-xl">
         <div className="overflow-x-auto">
@@ -182,11 +272,10 @@ export const VendorProduct = () => {
             </thead>
             <tbody className="divide-y divide-white/5">
               {isLoading ? (
-                // Loading Skeleton Rows
                 [...Array(4)].map((_, i) => (
                   <tr key={`skeleton-${i}`} className="animate-pulse">
                     <td className="py-3.5 px-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex-shrink-0" />
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 shrink-0" />
                       <div className="space-y-2">
                         <div className="h-3 w-32 bg-white/10 rounded" />
                         <div className="h-2 w-20 bg-white/5 rounded" />
@@ -211,7 +300,10 @@ export const VendorProduct = () => {
                 ))
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-gray-500 font-mono text-xs">
+                  <td
+                    colSpan={5}
+                    className="text-center py-12 text-gray-500 font-mono text-xs"
+                  >
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle size={24} className="text-gray-600" />
                       <span>No products found matching your criteria.</span>
@@ -220,11 +312,23 @@ export const VendorProduct = () => {
                 </tr>
               ) : (
                 filteredProducts.map((product: any) => {
-                  const imageUrl = product.images?.[0]?.url || (typeof product.images?.[0] === 'string' ? product.images[0] : null);
+                  const imageUrl =
+                    product.images?.[0]?.url ||
+                    (typeof product.images?.[0] === "string"
+                      ? product.images[0]
+                      : null);
+                  const isVisible = Boolean(product.isActive);
+                  const isToggling = Boolean(togglingIds[product.id]);
+
                   return (
-                    <tr key={product.id} className="hover:bg-white/[0.02] transition">
+                    <tr
+                      key={product.id}
+                      className={`hover:bg-white/2 transition ${
+                        !isVisible ? "opacity-75" : ""
+                      }`}
+                    >
                       <td className="py-3.5 px-4 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
                           {imageUrl ? (
                             <img
                               src={imageUrl}
@@ -261,15 +365,37 @@ export const VendorProduct = () => {
                         </span>
                       </td>
                       <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-semibold ${
-                            product.isActive
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : "bg-gray-500/10 text-gray-400 border border-gray-500/20"
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={isVisible}
+                          aria-label={`Toggle visibility for ${product.title}`}
+                          disabled={isToggling}
+                          onClick={() => void handleToggleVisibility(product)}
+                          title={
+                            isVisible
+                              ? "Active (visible on storefront) — click to hide"
+                              : "Hidden from storefront — click to activate"
+                          }
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-semibold transition cursor-pointer disabled:opacity-50 ${
+                            isVisible
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+                              : "bg-gray-500/10 text-gray-400 border border-gray-500/20 hover:bg-gray-500/20 hover:text-gray-200"
                           }`}
                         >
-                          {product.isActive ? "Active" : "Hidden"}
-                        </span>
+                          {isVisible ? (
+                            <Eye size={12} />
+                          ) : (
+                            <EyeOff size={12} />
+                          )}
+                          <span>
+                            {isToggling
+                              ? "Updating..."
+                              : isVisible
+                              ? "Active"
+                              : "Hidden"}
+                          </span>
+                        </button>
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
