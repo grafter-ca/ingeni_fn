@@ -29,7 +29,7 @@ const HeroSection = () => {
 
         {/* --- LEFT BOX: MAIN HERO BANNER (Spans 2 columns) --- */}
         <motion.div
-          className="lg:col-span-2 relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 flex flex-col justify-end p-6 md:p-8 min-h-[360px] md:min-h-[380px] shadow-2xl group bg-zinc-950"
+          className="lg:col-span-2 relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 flex flex-col justify-end p-6 md:p-8 min-h-90 md:min-h-95 shadow-2xl group bg-zinc-950"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -46,11 +46,11 @@ const HeroSection = () => {
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-[0.75] contrast-[1.1]"
             />
             {/* Dark gradient overlay to keep text clearly readable */}
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/50 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-zinc-950/50 to-transparent" />
           </div>
 
           {/* Content with a reserved minimum layout box to prevent reflows */}
-          <div className="relative z-10 space-y-3 max-w-xl min-h-[160px] flex flex-col justify-end">
+          <div className="relative z-10 space-y-3 max-w-xl min-h-40 flex flex-col justify-end">
             <h1 className="font-poppins font-bold text-2xl md:text-4xl text-white tracking-tight leading-tight drop-shadow-md">
               The whole local market, delivered to your door
             </h1>
@@ -83,7 +83,7 @@ const HeroSection = () => {
 
           {/* TOP RIGHT: Auto-Sliding Promo Box */}
           <motion.div
-            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-[175px] md:h-[180px] shadow-xl bg-zinc-950 flex flex-col justify-end p-5 transition-colors"
+            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-43.75 md:h-45 shadow-xl bg-zinc-950 flex flex-col justify-end p-5 transition-colors"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -104,7 +104,7 @@ const HeroSection = () => {
                   height="180"
                   className="w-full h-full object-cover brightness-[0.7] contrast-[1.05]"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
               </motion.div>
             </AnimatePresence>
 
@@ -136,7 +136,7 @@ const HeroSection = () => {
 
           {/* BOTTOM RIGHT: Interactive Animated Asset / Feature Box */}
           <motion.div
-            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-[175px] md:h-[180px] shadow-xl bg-zinc-50 dark:bg-[#0c0c0e] p-5 flex flex-col justify-between group cursor-pointer transition-colors"
+            className="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-white/15 h-43.75 md:h-45 shadow-xl bg-zinc-50 dark:bg-[#0c0c0e] p-5 flex flex-col justify-between group cursor-pointer transition-colors"
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.3 }}
             onClick={() => navigate("/products")}

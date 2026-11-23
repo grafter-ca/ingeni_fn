@@ -7,7 +7,7 @@ import CallToAction from "../features/home/CallToAction";
 
 const Home = () => {
   return (
-    <div className="min-h-screen bg-white dark:bg-background text-zinc-900 dark:text-white font-poppins transition-colors">
+    <div className="min-h-screen bg-white dark:bg-background text-zinc-900 dark:bg-[#050505] dark:text-white font-poppins transition-colors">
 
       {/* ── 1. Hero ── */}
       <Hero />
