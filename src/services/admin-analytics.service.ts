@@ -5,9 +5,17 @@ import type { TrafficStat } from "../types/admin";
 export async function fetchVendorTrafficStats(
   vendorId: string,
 ): Promise<TrafficStat[]> {
-  if (!vendorId) {
+  const cleanId = String(vendorId || "").trim();
+  if (!cleanId) {
     return [];
   }
-  const result = await localApi.get<any>(`/analytics/vendor/${vendorId}`);
-  return Array.isArray(result) ? result : (result?.data ?? []);
+
+  const result = await localApi.get<any>(
+    `/analytics/vendor/${encodeURIComponent(cleanId)}`,
+  );
+
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.data)) return result.data;
+  if (Array.isArray(result?.stats)) return result.stats;
+  return [];
 }
