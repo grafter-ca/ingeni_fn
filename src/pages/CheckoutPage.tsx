@@ -13,6 +13,10 @@ import {
   Smartphone,
   Banknote,
   Wallet,
+  Copy,
+  Check,
+  Truck,
+  PackageCheck,
 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import type { PaymentMethod } from "../types/api";
@@ -26,11 +30,20 @@ const DEFAULT_PROVIDER_BY_METHOD: Record<PaymentMethod, string> = {
   WORKFORCE_WALLET: "WALLET",
 };
 
+const FREE_SHIPPING_THRESHOLD = 10000;
+const STANDARD_SHIPPING_FEE = 500;
+
+const getItemVendorId = (item: any): string | undefined =>
+  item?.vendorId || item?.product?.vendorId || item?.vendor?.id || undefined;
+
 const CheckoutPage = () => {
   const { items, clearCart, getTotalPrice, getTotalItems } = useCartStore();
   const { vendors, fetchVendors } = useVendorStore();
   const { user } = useAuthState();
   const [showPaymentGate, setShowPaymentGate] = useState(false);
+  const [copiedVendorPhone, setCopiedVendorPhone] = useState<string | null>(
+    null,
+  );
   const userId = user?.id || null;
 
   const { createOrder, loading, error } = useOrderStore();
@@ -71,27 +84,61 @@ const CheckoutPage = () => {
     );
   }
 
+  // Check whether any cart item explicitly disables shipping (e.g., digital/pickup-only)
+  const hasShippableItems = items.some(
+    (item: any) =>
+      item.requiresShipping !== false &&
+      item.isDigital !== true &&
+      item.freeShipping !== true,
+  );
+
+  const qualifiesForFreeShipping =
+    !hasShippableItems || total > FREE_SHIPPING_THRESHOLD;
+  const shipping = qualifiesForFreeShipping ? 0 : STANDARD_SHIPPING_FEE;
+  const amountNeededForFreeShipping = Math.max(
+    0,
+    FREE_SHIPPING_THRESHOLD + 1 - total,
+  );
+
   const tax = total * 0.18;
-  const shipping = total > 10000 ? 0 : 500; // Free shipping for orders above 10,000 RWF
   const grandTotal = total + tax + shipping;
 
-  // Unique vendors in the current cart using Prisma Vendor fields (storeName, phone)
+  // Unique vendors in the current cart using Vendor fields (storeName, phone)
   const cartVendors = Array.from(
     new Map(
       items.map((item) => {
-        const vendorRecord = vendors.find((v) => v.id === item.vendorId);
-        const key = item.vendorId || item.id;
+        const resolvedVendorId = getItemVendorId(item);
+        const vendorRecord = vendors.find((v) => v.id === resolvedVendorId);
+        const key = resolvedVendorId || item.id;
         return [
           key,
           {
-            id: item.vendorId || key,
-            storeName: vendorRecord?.storeName || "Vendor Store",
-            phone: vendorRecord?.phone || null,
+            id: resolvedVendorId || key,
+            storeName:
+              vendorRecord?.storeName ||
+              (item as any)?.product?.vendor?.storeName ||
+              "Vendor Store",
+            phone:
+              vendorRecord?.phone ||
+              (item as any)?.product?.vendor?.phone ||
+              null,
           },
         ];
-      })
-    ).values()
+      }),
+    ).values(),
   );
+
+  const handleCopyPhone = async (phone: string) => {
+    try {
+      await navigator.clipboard.writeText(phone);
+      setCopiedVendorPhone(phone);
+      setTimeout(() => {
+        setCopiedVendorPhone((prev) => (prev === phone ? null : prev));
+      }, 2000);
+    } catch {
+      // Clipboard fallback ignored if blocked
+    }
+  };
 
   const handlePlaceOrder = async ({
     shippingAddress,
@@ -99,7 +146,7 @@ const CheckoutPage = () => {
     email,
     paymentMethod,
     provider,
-    paymentProofFile,
+    paymentProofUrl,
   }: {
     shippingAddress: string;
     phoneNumber: string;
@@ -107,60 +154,52 @@ const CheckoutPage = () => {
     paymentMethod: PaymentMethod;
     provider: string;
     paymentProofFile?: File;
+    paymentProofUrl?: string;
   }) => {
-    let paymentProofUrl: string | undefined = undefined;
-    try {
-      const validatedItems = items.map((item) => {
-        const cleanId = item.productId
-          ? item.productId.replace("local-", "").replace("fake-", "")
-          : item.id;
-        if (!cleanId) {
-          throw new Error(`${item.name} is missing productId`);
-        }
+const validatedItems = items.map((item: any) => {
+  const rawId = item.productId || item.id;
+  const cleanId = rawId
+    ? String(rawId).replace(/^local-/i, "").replace(/^fake-/i, "")
+    : "";
+  if (!cleanId) {
+    throw new Error(`${item.name} is missing productId`);
+  }
 
-        if (!item.vendorId) {
-          throw new Error(
-            `${item.name} is missing vendorId assignment for multi-vendor distribution`
-          );
-        }
+  const resolvedVendorId =
+    getItemVendorId(item) ||
+    vendors.find((v) => v.storeName === item.storeName)?.id;
 
-        return {
-          productId: cleanId,
-          vendorId: item.vendorId,
-          quantity: item.quantity,
-        };
-      });
+  if (!resolvedVendorId) {
+    throw new Error(
+      `${item.name} is missing vendorId assignment for multi-vendor distribution`,
+    );
+  }
 
-      if (paymentProofFile) {
-        paymentProofUrl = URL.createObjectURL(paymentProofFile);
-      }
+  return {
+    productId: cleanId,
+    vendorId: resolvedVendorId,
+    quantity: Number(item.quantity || 1),
+  };
+});
 
-      const payload = {
-        items: validatedItems,
-        shippingAddress,
-        phoneNumber,
-        email,
-        paymentMethod,
-        provider: provider || DEFAULT_PROVIDER_BY_METHOD[paymentMethod],
-        paymentProofUrl,
-        totalAmount: grandTotal,
-        taxAmount: tax,
-        shippingFees: shipping,
-        userId: userId || undefined,
-      };
+    const payload = {
+      items: validatedItems,
+      shippingAddress,
+      phoneNumber,
+      email,
+      paymentMethod,
+      provider: provider || DEFAULT_PROVIDER_BY_METHOD[paymentMethod],
+      paymentProofUrl: paymentProofUrl || undefined,
+      totalAmount: grandTotal,
+      taxAmount: tax,
+      shippingFees: shipping,
+      userId: userId || undefined,
+    };
 
-      const order = await createOrder(payload);
+    const order = await createOrder(payload);
 
-      clearCart();
-      navigate(`/order-success/${order.orderNumber || order.id}`);
-    } catch (err) {
-      console.error("Checkout submission failed:", err);
-      throw err;
-    } finally {
-      if (paymentProofUrl) {
-        URL.revokeObjectURL(paymentProofUrl);
-      }
-    }
+    clearCart();
+    navigate(`/order-success/${order.orderNumber || order.id}`);
   };
 
   return (
@@ -223,6 +262,7 @@ const CheckoutPage = () => {
               loading={loading}
               error={error}
               totalAmount={grandTotal}
+              vendors={cartVendors}
               selectedPayment={selectedPayment}
               onPaymentMethodChange={setSelectedPayment}
               defaultValues={{
@@ -281,30 +321,66 @@ const CheckoutPage = () => {
               </div>
 
               {selectedPayment === "MOBILE_MONEY" && (
-                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                    MoMo Payment & Vendor Contact Details
+                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                      <Smartphone size={14} />
+                      Mobile Money (MoMo) Payment Numbers
+                    </p>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300">
+                      Direct Vendor MoMo
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                    You can send your Mobile Money (MoMo) payment directly to the
+                    vendor&apos;s registered phone number listed below, or use
+                    your MoMo payment code to complete and verify your order:
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">
-                    Use your existing MoMo code with the vendor phone number below to pay or verify your order:
-                  </p>
-                  <div className="space-y-1.5 pt-1">
+
+                  <div className="space-y-2 pt-1">
                     {cartVendors.map((vendor) => (
                       <div
                         key={vendor.id}
-                        className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white/80 dark:bg-black/30 px-3 py-2 rounded-xl border border-gray-200/70 dark:border-white/10"
+                        className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white/90 dark:bg-black/40 px-3.5 py-2.5 rounded-xl border border-gray-200/80 dark:border-white/10"
                       >
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {vendor.storeName}
-                        </span>
+                        <div>
+                          <span className="font-semibold text-gray-900 dark:text-white block">
+                            {vendor.storeName}
+                          </span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                            Registered MoMo / Mobile Number
+                          </span>
+                        </div>
+
                         {vendor.phone ? (
-                          <a
-                            href={`tel:${vendor.phone}`}
-                            className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            <Phone size={13} />
-                            {vendor.phone}
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={`tel:${vendor.phone}`}
+                              className="inline-flex items-center gap-1.5 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              <Phone size={13} />
+                              {vendor.phone}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => void handleCopyPhone(vendor.phone!)}
+                              title="Copy MoMo number"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-blue-600 hover:text-white text-[11px] font-medium transition cursor-pointer"
+                            >
+                              {copiedVendorPhone === vendor.phone ? (
+                                <>
+                                  <Check size={12} className="text-emerald-500" />
+                                  Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={12} />
+                                  Copy
+                                </>
+                              )}
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-gray-500 dark:text-gray-400">
                             No vendor phone — support: {supportTeam.phone}
@@ -326,8 +402,13 @@ const CheckoutPage = () => {
               </h2>
 
               <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                {items.map((item) => {
-                  const itemVendor = vendors.find((v) => v.id === item.vendorId);
+                {items.map((item: any) => {
+                  const resolvedVendorId = getItemVendorId(item);
+                  const itemVendor = vendors.find(
+                    (v) => v.id === resolvedVendorId,
+                  );
+                  const vendorPhone =
+                    itemVendor?.phone || item?.product?.vendor?.phone;
                   const lineTotal = Number(item.price || 0) * item.quantity;
 
                   return (
@@ -344,7 +425,7 @@ const CheckoutPage = () => {
                         </h3>
                         <p className="text-xs text-gray-500">
                           Qty: {item.quantity}
-                          {itemVendor?.phone ? ` • Tel: ${itemVendor.phone}` : ""}
+                          {vendorPhone ? ` • MoMo/Tel: ${vendorPhone}` : ""}
                         </p>
                       </div>
 
@@ -356,7 +437,42 @@ const CheckoutPage = () => {
                 })}
               </div>
 
-              <div className="border-t border-gray-200 dark:border-white/5 mt-8 pt-6 space-y-3">
+              {/* Conditional Shipping Information Banner */}
+              <div
+                className={`mt-6 p-3.5 rounded-2xl border text-xs flex items-start gap-3 ${
+                  qualifiesForFreeShipping
+                    ? "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                    : "bg-amber-50/70 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-500/20 text-amber-800 dark:text-amber-300"
+                }`}
+              >
+                {qualifiesForFreeShipping ? (
+                  <PackageCheck
+                    size={18}
+                    className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+                  />
+                ) : (
+                  <Truck
+                    size={18}
+                    className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+                  />
+                )}
+                <div className="space-y-0.5">
+                  <p className="font-bold uppercase tracking-wider text-[11px]">
+                    {qualifiesForFreeShipping
+                      ? "Free Shipping Applied"
+                      : `Shipping Required — RF ${shipping.toLocaleString()}`}
+                  </p>
+                  <p className="text-[11px] opacity-90 leading-relaxed">
+                    {!hasShippableItems
+                      ? "No shipping fee applies to the items in your cart."
+                      : qualifiesForFreeShipping
+                        ? `Your order exceeds RF ${FREE_SHIPPING_THRESHOLD.toLocaleString()} and qualifies for free delivery.`
+                        : `Standard delivery fee applies. Add RF ${amountNeededForFreeShipping.toLocaleString()} more to unlock free shipping.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-white/5 mt-6 pt-6 space-y-3">
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                   <span>Subtotal</span>
                   <span className="text-gray-900 dark:text-white font-medium">
@@ -371,11 +487,20 @@ const CheckoutPage = () => {
                   </span>
                 </div>
 
-                <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                  <span>Delivery</span>
-                  <span className="text-gray-900 dark:text-white font-medium">
-                    RF {shipping.toLocaleString()}
-                  </span>
+                <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+                  <span>Shipping &amp; Delivery</span>
+                  {shipping === 0 ? (
+                    <span className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-emerald-500/15">
+                        Free Shipping
+                      </span>
+                      RF 0
+                    </span>
+                  ) : (
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      RF {shipping.toLocaleString()}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-white/5 pt-4 text-blue-600 dark:text-blue-400">

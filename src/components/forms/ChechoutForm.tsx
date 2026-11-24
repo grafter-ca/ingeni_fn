@@ -1,11 +1,13 @@
 // src/components/forms/CheckoutForm.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
+  CheckCircle2,
   CreditCard,
   Loader2,
   Phone,
   Smartphone,
   Upload,
+  X,
 } from "lucide-react";
 import type { PaymentMethod } from "../../types/api";
 
@@ -15,20 +17,24 @@ export type CheckoutVendorContact = {
   phone?: string | null;
 };
 
+export type CheckoutSubmitPayload = {
+  shippingAddress: string;
+  phoneNumber: string;
+  email: string;
+  paymentMethod: PaymentMethod;
+  provider: string;
+  paymentProofFile?: File;
+  paymentProofUrl?: string;
+};
+
 type CheckoutFormProps = {
-  onSubmit: (data: {
-    shippingAddress: string;
-    phoneNumber: string;
-    email: string;
-    paymentMethod: PaymentMethod;
-    provider: string;
-    paymentProofFile?: File;
-  }) => Promise<void>;
+  onSubmit: (data: CheckoutSubmitPayload) => Promise<void>;
 
   loading?: boolean;
   error?: string | null;
   totalAmount: number;
   vendors?: CheckoutVendorContact[];
+  uploadProofEndpoint?: string;
 
   // External synchronized payment state props
   selectedPayment?: PaymentMethod;
@@ -42,6 +48,8 @@ type CheckoutFormProps = {
     provider?: string;
   };
 };
+
+const MAX_PROOF_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 const getDefaultProvider = (method: PaymentMethod): string => {
   switch (method) {
@@ -58,12 +66,73 @@ const getDefaultProvider = (method: PaymentMethod): string => {
   }
 };
 
+function resolveApiUrl(path: string): string {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    const envBase = import.meta.env.VITE_API_URL as string | undefined;
+
+    if (!isLocal) {
+      return path.startsWith("/") ? path : `/${path}`;
+    }
+
+    if (envBase && envBase.trim().length > 0) {
+      return `${envBase.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+    }
+  }
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+async function uploadPaymentProofToServer(
+  file: File,
+  endpointPath: string,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("image", file);
+  formData.append("folder", "payment-proofs");
+
+  const response = await fetch(resolveApiUrl(endpointPath), {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const serverMessage =
+      data?.message ||
+      data?.error ||
+      `Proof upload failed (${response.status}).`;
+    throw new Error(serverMessage);
+  }
+
+  const uploadedUrl =
+    data?.url ||
+    data?.secure_url ||
+    data?.imageUrl ||
+    data?.paymentProofUrl ||
+    data?.data?.url ||
+    data?.data?.secure_url ||
+    null;
+
+  if (!uploadedUrl || typeof uploadedUrl !== "string") {
+    throw new Error(
+      "Image uploaded to server, but no permanent URL was returned to save in database.",
+    );
+  }
+
+  return uploadedUrl;
+}
+
 const CheckoutForm = ({
   onSubmit,
   loading: externalLoading = false,
   error: externalError = null,
   totalAmount,
   vendors = [],
+  uploadProofEndpoint = "/api/upload",
   selectedPayment,
   onPaymentMethodChange,
   defaultValues = {
@@ -75,14 +144,20 @@ const CheckoutForm = ({
   },
 }: CheckoutFormProps) => {
   const [localLoading, setLocalLoading] = useState(false);
+  const [uploadingProof, setUploadingProof] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  const [selectedProofFile, setSelectedProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [uploadedProofUrl, setUploadedProofUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [internalMethod, setInternalMethod] = useState<PaymentMethod>(
-    selectedPayment || defaultValues.paymentMethod
+    selectedPayment || defaultValues.paymentMethod,
   );
 
   const [provider, setProvider] = useState<string>(
-    defaultValues.provider || getDefaultProvider(internalMethod)
+    defaultValues.provider || getDefaultProvider(internalMethod),
   );
 
   useEffect(() => {
@@ -91,6 +166,14 @@ const CheckoutForm = ({
       setProvider(getDefaultProvider(selectedPayment));
     }
   }, [selectedPayment]);
+
+  useEffect(() => {
+    return () => {
+      if (proofPreviewUrl) {
+        URL.revokeObjectURL(proofPreviewUrl);
+      }
+    };
+  }, [proofPreviewUrl]);
 
   const handleMethodChange = (newMethod: PaymentMethod) => {
     setInternalMethod(newMethod);
@@ -101,7 +184,52 @@ const CheckoutForm = ({
     }
   };
 
-  const loading = externalLoading || localLoading;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setLocalError(null);
+    setUploadedProofUrl(null);
+
+    if (proofPreviewUrl) {
+      URL.revokeObjectURL(proofPreviewUrl);
+      setProofPreviewUrl(null);
+    }
+
+    if (!file) {
+      setSelectedProofFile(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setSelectedProofFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setLocalError("Please select a valid image file (PNG, JPG, WEBP).");
+      return;
+    }
+
+    if (file.size > MAX_PROOF_SIZE_BYTES) {
+      setSelectedProofFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setLocalError("Payment proof image must be 5 MB or smaller.");
+      return;
+    }
+
+    setSelectedProofFile(file);
+    setProofPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleClearProof = () => {
+    if (proofPreviewUrl) {
+      URL.revokeObjectURL(proofPreviewUrl);
+    }
+    setProofPreviewUrl(null);
+    setSelectedProofFile(null);
+    setUploadedProofUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const loading = externalLoading || localLoading || uploadingProof;
   const error = externalError || localError;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -114,7 +242,7 @@ const CheckoutForm = ({
       const formData = new FormData(e.currentTarget);
 
       const shippingAddress = String(
-        formData.get("shippingAddress") || ""
+        formData.get("shippingAddress") || "",
       ).trim();
 
       const phoneNumber = String(formData.get("phoneNumber") || "").trim();
@@ -122,12 +250,10 @@ const CheckoutForm = ({
       const email = String(formData.get("email") || "").trim();
 
       const paymentMethod = String(
-        formData.get("paymentMethod") || internalMethod
+        formData.get("paymentMethod") || internalMethod,
       ) as PaymentMethod;
 
-      const selectedProvider = String(
-        formData.get("provider") || provider
-      );
+      const selectedProvider = String(formData.get("provider") || provider);
 
       if (!email || !email.includes("@")) {
         throw new Error("Please enter a valid email address.");
@@ -141,15 +267,32 @@ const CheckoutForm = ({
         throw new Error("Please enter a valid phone number.");
       }
 
-      const paymentProofFile = formData.get("paymentProof") as File;
+      const proofFile =
+        selectedProofFile ||
+        ((formData.get("paymentProof") as File | null) ?? null);
 
       if (
         paymentMethod === "MOBILE_MONEY" &&
-        (!paymentProofFile || paymentProofFile.size === 0)
+        (!proofFile || proofFile.size === 0)
       ) {
         throw new Error(
-          "Please upload a payment proof screenshot for Mobile Money transfer."
+          "Please upload a payment proof screenshot for Mobile Money transfer.",
         );
+      }
+
+      let finalProofUrl: string | undefined = uploadedProofUrl || undefined;
+
+      if (proofFile && proofFile.size > 0 && !finalProofUrl) {
+        setUploadingProof(true);
+        try {
+          finalProofUrl = await uploadPaymentProofToServer(
+            proofFile,
+            uploadProofEndpoint,
+          );
+          setUploadedProofUrl(finalProofUrl);
+        } finally {
+          setUploadingProof(false);
+        }
       }
 
       await onSubmit({
@@ -159,14 +302,14 @@ const CheckoutForm = ({
         paymentMethod,
         provider: selectedProvider,
         paymentProofFile:
-          paymentProofFile && paymentProofFile.size > 0
-            ? paymentProofFile
-            : undefined,
+          proofFile && proofFile.size > 0 ? proofFile : undefined,
+        paymentProofUrl: finalProofUrl,
       });
     } catch (err: any) {
       console.error(err);
       setLocalError(err?.message || "Checkout failed. Please try again.");
     } finally {
+      setUploadingProof(false);
       setLocalLoading(false);
     }
   };
@@ -179,7 +322,7 @@ const CheckoutForm = ({
     >
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-          Delivery & Payment
+          Delivery &amp; Payment
         </h2>
 
         <div className="flex items-center gap-2 text-green-600 dark:text-green-500 text-sm font-medium">
@@ -305,7 +448,7 @@ const CheckoutForm = ({
             <p>
               Store Name:{" "}
               <strong className="text-gray-900 dark:text-white">
-                Ingeni Store
+                INGET GROUP / Ingeni Store
               </strong>
             </p>
             <p>
@@ -355,17 +498,55 @@ const CheckoutForm = ({
             )}
           </div>
 
-          <div>
-            <label className="block mb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold md:flex items-center gap-2">
-              <Upload size={14} /> Upload Payment Screenshot Proof
+          <div className="space-y-2">
+            <label className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold md:flex items-center gap-2">
+              <Upload size={14} /> Upload Payment Screenshot Proof (Max 5MB)
             </label>
             <input
+              ref={fileInputRef}
               type="file"
               name="paymentProof"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp,image/*"
               disabled={loading}
+              onChange={handleFileChange}
               className="w-full text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
             />
+
+            {selectedProofFile && proofPreviewUrl && (
+              <div className="p-3 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={proofPreviewUrl}
+                    alt="Payment proof preview"
+                    className="w-12 h-12 rounded-lg object-cover border border-gray-200 dark:border-white/10 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">
+                      {selectedProofFile.name}
+                    </p>
+                    <p className="text-[11px] text-gray-500">
+                      {(selectedProofFile.size / 1024).toFixed(1)} KB
+                      {uploadedProofUrl ? " • Uploaded & ready for DB" : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {uploadedProofUrl && (
+                    <CheckCircle2 size={16} className="text-emerald-500" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleClearProof}
+                    disabled={loading}
+                    aria-label="Remove payment proof image"
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition cursor-pointer"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -388,11 +569,11 @@ const CheckoutForm = ({
         {loading ? (
           <>
             <Loader2 size={20} className="animate-spin" />
-            Processing...
+            {uploadingProof ? "Uploading Proof..." : "Processing..."}
           </>
         ) : (
           <>
-            Confirm & Pay
+            Confirm &amp; Pay
             <CreditCard size={18} />
           </>
         )}
