@@ -18,6 +18,8 @@ import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthState } from '../../context/AuthContext';
 import { socket } from '../../libs/socket.client';
 
+const VENDOR_ALLOWED_ROLES = new Set(['vendor', 'admin', 'super_admin']);
+
 const isPaidOrder = (order: any) => {
   const payStatus = String(order?.paymentStatus || '').toUpperCase();
   const status = String(order?.status || '').toUpperCase();
@@ -70,7 +72,16 @@ const getOrderNet = (order: any) => {
 };
 
 export const VendorFinancials = () => {
-  const { user } = useAuthState();
+  const authState = useAuthState() as {
+    user?: {
+      id?: string;
+      vendorId?: string;
+      phone?: string;
+      role?: string;
+    } | null;
+    isLoading?: boolean;
+    loading?: boolean;
+  };
   const {
     requests,
     vendorSettings,
@@ -80,6 +91,12 @@ export const VendorFinancials = () => {
     requestCashout,
   } = useVendorStore() as any;
   const { orders, fetchVendorOrders } = useOrderStore();
+
+  const user = authState?.user ?? null;
+  const isAuthLoading = Boolean(authState?.isLoading ?? authState?.loading);
+  const normalizedRole = String(user?.role || '').toLowerCase();
+  const canAccessVendorData =
+    Boolean(user?.id) && VENDOR_ALLOWED_ROLES.has(normalizedRole);
 
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState(user?.phone || '+250');
@@ -92,6 +109,10 @@ export const VendorFinancials = () => {
     vendorSettings?.momoCode || vendorSettings?.momo_code || null;
 
   useEffect(() => {
+    if (isAuthLoading || !canAccessVendorData) {
+      return;
+    }
+
     void fetchVendorOrders();
     if (typeof fetchVendorSettings === 'function') {
       void fetchVendorSettings();
@@ -99,7 +120,14 @@ export const VendorFinancials = () => {
     if (vendorId) {
       void fetchVendorFinancials(vendorId);
     }
-  }, [vendorId, fetchVendorFinancials, fetchVendorOrders, fetchVendorSettings]);
+  }, [
+    isAuthLoading,
+    canAccessVendorData,
+    vendorId,
+    fetchVendorFinancials,
+    fetchVendorOrders,
+    fetchVendorSettings,
+  ]);
 
   useEffect(() => {
     const preferredPhone =
@@ -121,6 +149,10 @@ export const VendorFinancials = () => {
   ]);
 
   useEffect(() => {
+    if (isAuthLoading || !canAccessVendorData) {
+      return;
+    }
+
     const handleRequestUpdated = (payload: {
       vendorId?: string | null;
       userId?: string | null;
@@ -138,7 +170,13 @@ export const VendorFinancials = () => {
     return () => {
       socket?.off?.('admin:request-updated', handleRequestUpdated);
     };
-  }, [fetchVendorFinancials, user?.id, vendorId]);
+  }, [
+    isAuthLoading,
+    canAccessVendorData,
+    fetchVendorFinancials,
+    user?.id,
+    vendorId,
+  ]);
 
   const safeOrders = useMemo(
     () => (Array.isArray(orders) ? orders : []),
@@ -229,7 +267,11 @@ export const VendorFinancials = () => {
         deliveredAmount += gross;
       }
 
-      if (statusUpper === 'RETURNED' || statusUpper === 'REFUNDED' || statusUpper === 'RETURN_REQUESTED') {
+      if (
+        statusUpper === 'RETURNED' ||
+        statusUpper === 'REFUNDED' ||
+        statusUpper === 'RETURN_REQUESTED'
+      ) {
         returnedCount += 1;
         returnedAmount += gross;
       }
