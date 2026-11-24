@@ -99,6 +99,7 @@ interface VendorState {
   socket: Socket | null;
 
   // Actions
+  resetVendorState: () => void;
   fetchVendors: (params?: any) => Promise<void>;
   fetchVendorDirectory: (params?: any) => Promise<void>;
   fetchVendorById: (id: string) => Promise<void>;
@@ -155,6 +156,7 @@ interface VendorState {
 }
 
 let listenersInitialized = false;
+let inFlightDashboardFetch: Promise<void> | null = null;
 
 const isForbidden = (err: any) =>
   (err?.response?.status ?? err?.status) === 403;
@@ -188,6 +190,22 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   isEditing: null,
   formData: { ...EMPTY_VENDOR_FORM },
   socket: socket,
+
+  resetVendorState: () =>
+    set({
+      orders: [],
+      stats: null,
+      pendingRequests: [],
+      vendorSettings: null,
+      totalRevenue: 0,
+      netBalance: 0,
+      requests: [],
+      selectedVendor: null,
+      activeMetrics: null,
+      error: null,
+      isLoading: false,
+      isLoadingRequests: false,
+    }),
 
   fetchVendors: async (params) => {
     set({ isLoading: true, error: null });
@@ -251,7 +269,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       set({ selectedVendor: profile, activeMetrics: metrics, isLoading: false });
     } catch (err: any) {
       set({
-        error: "Failed to pull detailed profile insights",
+        error: err?.message || "Failed to pull detailed profile insights",
         isLoading: false,
       });
     }
@@ -269,33 +287,44 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   },
 
   fetchVendorDashboardData: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const [ordersData, metricsData] = await Promise.all([
-        vendorService.getVendorOrders(),
-        vendorService.getStorefrontMetrics(),
-      ]);
-
-      const mappedStats: VendorStats = metricsData || {
-        revenue: ordersData.reduce(
-          (acc: number, curr: any) =>
-            curr.status === "DELIVERED"
-              ? acc + Number(curr.totalAmount || 0)
-              : acc,
-          0,
-        ),
-        activeOrders: ordersData.filter((o: any) => o.status === "PENDING")
-          .length,
-        productCount: get().vendors.length,
-      };
-
-      set({ orders: ordersData, stats: mappedStats, isLoading: false });
-    } catch (err: any) {
-      set({
-        error: "Failed to pull transaction metrics telemetry",
-        isLoading: false,
-      });
+    if (inFlightDashboardFetch) {
+      return inFlightDashboardFetch;
     }
+
+    inFlightDashboardFetch = (async () => {
+      set({ isLoading: true, error: null });
+      try {
+        const [ordersData, metricsData] = await Promise.all([
+          vendorService.getVendorOrders(),
+          vendorService.getStorefrontMetrics(),
+        ]);
+
+        const mappedStats: VendorStats = metricsData || {
+          revenue: ordersData.reduce(
+            (acc: number, curr: any) =>
+              curr.status === "DELIVERED"
+                ? acc + Number(curr.totalAmount || 0)
+                : acc,
+            0,
+          ),
+          activeOrders: ordersData.filter((o: any) => o.status === "PENDING")
+            .length,
+          productCount: get().vendors.length,
+        };
+
+        set({ orders: ordersData, stats: mappedStats, isLoading: false });
+      } catch (err: any) {
+        set({
+          error:
+            err?.message || "Failed to pull transaction metrics telemetry",
+          isLoading: false,
+        });
+      } finally {
+        inFlightDashboardFetch = null;
+      }
+    })();
+
+    return inFlightDashboardFetch;
   },
 
   fetchStorefrontMetrics: async () => {
