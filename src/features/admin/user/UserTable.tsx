@@ -53,7 +53,7 @@ const UserTable = ({ users, loading, refresh }: UserTableProps) => {
             // Check Better-Auth's boolean banned field directly
             const isBanned = user.banned === true;
             return (
-              <tr key={user.id} className="group hover:bg-white/[0.02] transition-all duration-300">
+              <tr key={user.id} className="group hover:bg-white/2 transition-all duration-300">
                 <td className="px-8 py-6">
                   <div className="flex items-center gap-4">
                     <div className="relative">

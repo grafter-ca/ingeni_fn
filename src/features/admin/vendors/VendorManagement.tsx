@@ -28,6 +28,7 @@ export const VendorManagement = () => {
   const [approvalForm, setApprovalForm] = useState({
     storeName: "",
     phone: "",
+    momoCode: "",
     address: "",
   });
 
@@ -49,6 +50,7 @@ export const VendorManagement = () => {
     setApprovalForm({
       storeName: req.storeName || defaultName,
       phone: req.phone || req.user?.phone || "",
+      momoCode: req.momoCode || req.momo_code || "",
       address: req.address || "Kigali, Rwanda",
     });
   };
@@ -63,9 +65,22 @@ export const VendorManagement = () => {
       return;
     }
 
+    const trimmedMomoCode = approvalForm.momoCode.trim();
+
     setIsApproving(true);
     try {
-      const result: any = await approveVendorRequest({
+      const approveRequestWithMomo = approveVendorRequest as unknown as (
+        payload: {
+          userId: string;
+          storeName: string;
+          description: string;
+          address: string;
+          phone: string;
+          momoCode?: string;
+        },
+      ) => Promise<any>;
+
+      const result: any = await approveRequestWithMomo({
         userId,
         storeName: approvalForm.storeName.trim(),
         description:
@@ -74,6 +89,7 @@ export const VendorManagement = () => {
           "",
         address: approvalForm.address.trim(),
         phone: approvalForm.phone.trim(),
+        momoCode: trimmedMomoCode || undefined,
       });
 
       if (result?.emailNotification?.success) {
@@ -179,61 +195,71 @@ export const VendorManagement = () => {
             </div>
           ) : (
             <div className="grid gap-3">
-              {safePending.map((req) => (
-                <div
-                  key={req.id}
-                  className="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h4 className="font-bold text-white text-base">
-                        {req.user?.name || "Anonymous Partner"}
-                      </h4>
-                      {req.user?.email && (
-                        <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded-md">
-                          {req.user.email}
-                        </span>
-                      )}
+              {safePending.map((req) => {
+                const reqMomoCode =
+                  req.momoCode ||
+                  (req as unknown as { momo_code?: string }).momo_code;
+                return (
+                  <div
+                    key={req.id}
+                    className="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4 className="font-bold text-white text-base">
+                          {req.user?.name || "Anonymous Partner"}
+                        </h4>
+                        {req.user?.email && (
+                          <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded-md">
+                            {req.user.email}
+                          </span>
+                        )}
+                        {reqMomoCode && (
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                            MoMo Code: {reqMomoCode}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-300 max-w-xl">
+                        {req.businessDescription ||
+                          req.description ||
+                          "No description provided."}
+                      </p>
+                      <span className="text-[10px] text-gray-500 font-mono">
+                        Submitted:{" "}
+                        {req.submittedAt
+                          ? new Date(req.submittedAt).toLocaleString()
+                          : "Recent"}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-300 max-w-xl">
-                      {req.businessDescription ||
-                        req.description ||
-                        "No description provided."}
-                    </p>
-                    <span className="text-[10px] text-gray-500 font-mono">
-                      Submitted:{" "}
-                      {req.submittedAt
-                        ? new Date(req.submittedAt).toLocaleString()
-                        : "Recent"}
-                    </span>
-                  </div>
 
-                  <div className="flex items-center gap-2 self-end md:self-center shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenApprovalModal(req)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
-                    >
-                      Review & Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await rejectVendorRequest(req.id);
-                          toast.success("Merchant request rejected.");
-                          await fetchPendingRequests();
-                        } catch (err: any) {
-                          toast.error(err?.message || "Action failed.");
-                        }
-                      }}
-                      className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    >
-                      Reject
-                    </button>
+                    <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenApprovalModal(req)}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+                      >
+                        Review &amp; Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await rejectVendorRequest(req.id);
+                            toast.success("Merchant request rejected.");
+                            await fetchPendingRequests();
+                          } catch (err: any) {
+                            toast.error(err?.message || "Action failed.");
+                          }
+                        }}
+                        className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -274,19 +300,39 @@ export const VendorManagement = () => {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Contact Phone Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="+250 700 000 000"
-                  value={approvalForm.phone}
-                  onChange={(e) =>
-                    setApprovalForm({ ...approvalForm, phone: e.target.value })
-                  }
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                    Contact Phone Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="+250 700 000 000"
+                    value={approvalForm.phone}
+                    onChange={(e) =>
+                      setApprovalForm({ ...approvalForm, phone: e.target.value })
+                    }
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                    MoMo Code (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 123456"
+                    value={approvalForm.momoCode}
+                    onChange={(e) =>
+                      setApprovalForm({
+                        ...approvalForm,
+                        momoCode: e.target.value,
+                      })
+                    }
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">

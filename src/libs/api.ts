@@ -6,19 +6,19 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
 
 const resolveApiBase = (rawUrl: string): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== "undefined" &&
       window.location.hostname === "ingeni.onrender.com");
 
   if (isDeployedSite) {
-    return "/api";
+    return rawUrl ? (rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`) : "/api";
   }
 
-  if (!rawUrl) {
-    return "https://ingeri-api.onrender.com/api";
+  if (rawUrl) {
+    return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
   }
 
-  return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
+  return "https://ingeri-api.onrender.com/api";
 };
 
 const LOCAL_BASE = resolveApiBase(RAW_VITE_API_URL);
@@ -50,21 +50,33 @@ async function baseRequest<T>(
         },
     body: isFormData
       ? options.body
-      : options.body
+      : options.body !== undefined
       ? JSON.stringify(options.body)
       : undefined,
     credentials: options.credentials || "include",
   });
 
+  const text = await response.text();
+
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
     throw new Error(
-      `Request failed at ${url} (${response.status}): ${errorText || response.statusText}`
+      `Request failed at ${url} (${response.status}): ${text || response.statusText}`
     );
   }
 
-  const text = await response.text();
-  return text ? JSON.parse(text) : ({} as T);
+  if (!text) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(
+      `Expected JSON from ${url}, received non-JSON response starting with: ${text
+        .slice(0, 80)
+        .replace(/\s+/g, " ")}`
+    );
+  }
 }
 
 // --- API Wrapper ---

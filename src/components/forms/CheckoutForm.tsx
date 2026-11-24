@@ -1,7 +1,9 @@
 // src/components/forms/CheckoutForm.tsx
 import { useState, useEffect, useRef } from "react";
 import {
+  Check,
   CheckCircle2,
+  Copy,
   CreditCard,
   Loader2,
   Phone,
@@ -14,7 +16,9 @@ import type { PaymentMethod } from "../../types/api";
 export type CheckoutVendorContact = {
   id: string;
   storeName: string;
+  accountName?: string | null;
   phone?: string | null;
+  momoCode?: string | null;
 };
 
 export type CheckoutSubmitPayload = {
@@ -34,7 +38,7 @@ type CheckoutFormProps = {
   error?: string | null;
   totalAmount: number;
   vendors?: CheckoutVendorContact[];
-  uploadProofEndpoint?: string;
+  cloudinaryFolder?: string;
 
   // External synchronized payment state props
   selectedPayment?: PaymentMethod;
@@ -50,6 +54,7 @@ type CheckoutFormProps = {
 };
 
 const MAX_PROOF_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const PLATFORM_MOMO_MERCHANT_CODE = "1005404";
 
 const getDefaultProvider = (method: PaymentMethod): string => {
   switch (method) {
@@ -66,73 +71,76 @@ const getDefaultProvider = (method: PaymentMethod): string => {
   }
 };
 
-function resolveApiUrl(path: string): string {
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    const isLocal = host === "localhost" || host === "127.0.0.1";
-    const envBase = import.meta.env.VITE_API_URL as string | undefined;
-
-    if (!isLocal) {
-      return path.startsWith("/") ? path : `/${path}`;
-    }
-
-    if (envBase && envBase.trim().length > 0) {
-      return `${envBase.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-    }
+function formatErrorMessage(raw: unknown, fallback: string): string {
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.join(", ");
   }
-  return path.startsWith("/") ? path : `/${path}`;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.trim();
+  }
+  return fallback;
 }
 
-async function uploadPaymentProofToServer(
+async function uploadProofDirectlyToCloudinary(
   file: File,
-  endpointPath: string,
+  folder: string,
 ): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("image", file);
-  formData.append("folder", "payment-proofs");
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME?.trim();
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET?.trim();
 
-  const response = await fetch(resolveApiUrl(endpointPath), {
-    method: "POST",
-    body: formData,
-    credentials: "include",
-  });
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const serverMessage =
-      data?.message ||
-      data?.error ||
-      `Proof upload failed (${response.status}).`;
-    throw new Error(serverMessage);
+  if (!cloudName || !uploadPreset) {
+    throw new Error(
+      "Cloudinary configuration is missing (VITE_CLOUDINARY_CLOUD_NAME or VITE_CLOUDINARY_UPLOAD_PRESET).",
+    );
   }
 
-  const uploadedUrl =
-    data?.url ||
-    data?.secure_url ||
-    data?.imageUrl ||
-    data?.paymentProofUrl ||
-    data?.data?.url ||
-    data?.data?.secure_url ||
-    null;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  if (folder) {
+    formData.append("folder", folder);
+  }
 
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+
+  let data: any = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const cloudMessage = formatErrorMessage(
+      data?.error?.message ?? data?.message,
+      `Cloudinary upload failed (${response.status}).`,
+    );
+    throw new Error(cloudMessage);
+  }
+
+  const uploadedUrl = data?.secure_url || data?.url || null;
   if (!uploadedUrl || typeof uploadedUrl !== "string") {
     throw new Error(
-      "Image uploaded to server, but no permanent URL was returned to save in database.",
+      "Uploaded to Cloudinary, but no permanent image URL was returned.",
     );
   }
 
   return uploadedUrl;
 }
 
-const CheckoutForm = ({
+export const CheckoutForm = ({
   onSubmit,
   loading: externalLoading = false,
   error: externalError = null,
   totalAmount,
   vendors = [],
-  uploadProofEndpoint = "/api/upload",
+  cloudinaryFolder = "payment-proofs",
   selectedPayment,
   onPaymentMethodChange,
   defaultValues = {
@@ -146,6 +154,7 @@ const CheckoutForm = ({
   const [localLoading, setLocalLoading] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const [selectedProofFile, setSelectedProofFile] = useState<File | null>(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
@@ -175,9 +184,22 @@ const CheckoutForm = ({
     };
   }, [proofPreviewUrl]);
 
+  const handleCopyValue = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedCode(value);
+      setTimeout(() => {
+        setCopiedCode((prev) => (prev === value ? null : prev));
+      }, 2000);
+    } catch {
+      // Ignore clipboard permission errors
+    }
+  };
+
   const handleMethodChange = (newMethod: PaymentMethod) => {
     setInternalMethod(newMethod);
     setProvider(getDefaultProvider(newMethod));
+    setLocalError(null);
 
     if (onPaymentMethodChange) {
       onPaymentMethodChange(newMethod);
@@ -267,31 +289,36 @@ const CheckoutForm = ({
         throw new Error("Please enter a valid phone number.");
       }
 
-      const proofFile =
-        selectedProofFile ||
-        ((formData.get("paymentProof") as File | null) ?? null);
+      let finalProofUrl: string | undefined;
+      let activeProofFile: File | undefined;
 
-      if (
-        paymentMethod === "MOBILE_MONEY" &&
-        (!proofFile || proofFile.size === 0)
-      ) {
-        throw new Error(
-          "Please upload a payment proof screenshot for Mobile Money transfer.",
-        );
-      }
+      if (paymentMethod === "MOBILE_MONEY") {
+        const formFile = formData.get("paymentProof");
+        const proofFile =
+          selectedProofFile ||
+          (formFile instanceof File && formFile.size > 0 ? formFile : null);
 
-      let finalProofUrl: string | undefined = uploadedProofUrl || undefined;
-
-      if (proofFile && proofFile.size > 0 && !finalProofUrl) {
-        setUploadingProof(true);
-        try {
-          finalProofUrl = await uploadPaymentProofToServer(
-            proofFile,
-            uploadProofEndpoint,
+        if (!proofFile && !uploadedProofUrl) {
+          throw new Error(
+            "Please upload a payment proof screenshot for Mobile Money transfer.",
           );
-          setUploadedProofUrl(finalProofUrl);
-        } finally {
-          setUploadingProof(false);
+        }
+
+        finalProofUrl = uploadedProofUrl || undefined;
+        if (proofFile) {
+          activeProofFile = proofFile;
+          if (!finalProofUrl) {
+            setUploadingProof(true);
+            try {
+              finalProofUrl = await uploadProofDirectlyToCloudinary(
+                proofFile,
+                cloudinaryFolder,
+              );
+              setUploadedProofUrl(finalProofUrl);
+            } finally {
+              setUploadingProof(false);
+            }
+          }
         }
       }
 
@@ -301,13 +328,14 @@ const CheckoutForm = ({
         email,
         paymentMethod,
         provider: selectedProvider,
-        paymentProofFile:
-          proofFile && proofFile.size > 0 ? proofFile : undefined,
+        paymentProofFile: activeProofFile,
         paymentProofUrl: finalProofUrl,
       });
     } catch (err: any) {
       console.error(err);
-      setLocalError(err?.message || "Checkout failed. Please try again.");
+      setLocalError(
+        formatErrorMessage(err?.message, "Checkout failed. Please try again."),
+      );
     } finally {
       setUploadingProof(false);
       setLocalLoading(false);
@@ -394,6 +422,7 @@ const CheckoutForm = ({
             name="paymentMethod"
             required
             value={internalMethod}
+            disabled={loading}
             onChange={(e) =>
               handleMethodChange(e.target.value as PaymentMethod)
             }
@@ -415,6 +444,7 @@ const CheckoutForm = ({
             name="provider"
             required
             value={provider}
+            disabled={loading}
             onChange={(e) => setProvider(e.target.value)}
             className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-black border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 text-gray-900 dark:text-white transition-colors"
           >
@@ -444,7 +474,7 @@ const CheckoutForm = ({
             <Smartphone size={16} />
             Mobile Money Transfer Instructions
           </div>
-          <div className="text-xs text-gray-600 dark:text-gray-300 space-y-1 bg-white dark:bg-white/5 p-3 rounded-xl border border-gray-200 dark:border-white/5 transition-colors">
+          <div className="text-xs text-gray-600 dark:text-gray-300 space-y-1.5 bg-white dark:bg-white/5 p-3.5 rounded-xl border border-gray-200 dark:border-white/5 transition-colors">
             <p>
               Store Name:{" "}
               <strong className="text-gray-900 dark:text-white">
@@ -457,12 +487,31 @@ const CheckoutForm = ({
                 Caleb&apos;s Admin
               </strong>
             </p>
-            <p>
-              MoMo Number:{" "}
-              <strong className="text-yellow-600 dark:text-yellow-400 font-mono text-sm">
-                1005404
-              </strong>
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p>
+                Primary MoMo Code:{" "}
+                <strong className="text-yellow-600 dark:text-yellow-400 font-mono text-sm">
+                  {PLATFORM_MOMO_MERCHANT_CODE}
+                </strong>
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleCopyValue(PLATFORM_MOMO_MERCHANT_CODE)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 font-mono text-[11px] font-semibold transition cursor-pointer"
+              >
+                {copiedCode === PLATFORM_MOMO_MERCHANT_CODE ? (
+                  <>
+                    <Check size={12} className="text-emerald-500" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy size={12} />
+                    Copy Code
+                  </>
+                )}
+              </button>
+            </div>
             <p>
               Amount to Transfer:{" "}
               <strong className="text-gray-900 dark:text-white font-mono">
@@ -471,24 +520,68 @@ const CheckoutForm = ({
             </p>
 
             {vendors.length > 0 && (
-              <div className="pt-2 mt-2 border-t border-gray-200 dark:border-white/10 space-y-1">
+              <div className="pt-2 mt-2 border-t border-gray-200 dark:border-white/10 space-y-1.5">
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  Vendor Contact Phone(s):
+                  Vendor MoMo Code, Number &amp; Contact Phone(s):
                 </p>
                 {vendors.map((v) => (
                   <div
                     key={v.id}
-                    className="flex items-center justify-between gap-2"
+                    className="flex flex-wrap items-center justify-between gap-2 py-0.5"
                   >
-                    <span>{v.storeName}</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                        {v.storeName}
+                      </span>
+                      {v.accountName ? (
+                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          ({v.accountName})
+                        </span>
+                      ) : null}
+                      {v.momoCode ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyValue(v.momoCode!)}
+                          title="Copy vendor MoMo code"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/10 hover:bg-yellow-500/20 font-mono text-[11px] font-bold text-yellow-700 dark:text-yellow-400 transition cursor-pointer"
+                        >
+                          {copiedCode === v.momoCode ? (
+                            <>
+                              <Check size={11} className="text-emerald-500" />
+                              Copied {v.momoCode}
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={11} />
+                              MoMo: {v.momoCode}
+                            </>
+                          )}
+                        </button>
+                      ) : null}
+                    </div>
+
                     {v.phone ? (
-                      <a
-                        href={`tel:${v.phone}`}
-                        className="inline-flex items-center gap-1 font-mono text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        <Phone size={12} />
-                        {v.phone}
-                      </a>
+                      <div className="inline-flex items-center gap-2">
+                        <a
+                          href={`tel:${v.phone}`}
+                          className="inline-flex items-center gap-1 font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          <Phone size={12} />
+                          {v.phone}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyValue(v.phone!)}
+                          title="Copy vendor phone/MoMo number"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/10 hover:bg-blue-600 hover:text-white text-[10px] transition cursor-pointer"
+                        >
+                          {copiedCode === v.phone ? (
+                            <Check size={11} className="text-emerald-500" />
+                          ) : (
+                            <Copy size={11} />
+                          )}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-gray-400">Not provided</span>
                     )}
@@ -526,7 +619,7 @@ const CheckoutForm = ({
                     </p>
                     <p className="text-[11px] text-gray-500">
                       {(selectedProofFile.size / 1024).toFixed(1)} KB
-                      {uploadedProofUrl ? " • Uploaded & ready for DB" : ""}
+                      {uploadedProofUrl ? " • Uploaded to Cloudinary" : ""}
                     </p>
                   </div>
                 </div>
@@ -569,7 +662,7 @@ const CheckoutForm = ({
         {loading ? (
           <>
             <Loader2 size={20} className="animate-spin" />
-            {uploadingProof ? "Uploading Proof..." : "Processing..."}
+            {uploadingProof ? "Uploading to Cloudinary..." : "Processing..."}
           </>
         ) : (
           <>
@@ -582,4 +675,3 @@ const CheckoutForm = ({
   );
 };
 
-export default CheckoutForm;

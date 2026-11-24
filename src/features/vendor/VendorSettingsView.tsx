@@ -31,7 +31,7 @@ export const VendorSettingsView = () => {
     updateVendorSettings,
     submitAdminRequest,
     isLoading,
-  } = useVendorStore();
+  } = useVendorStore() as any;
 
   const [saved, setSaved] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -43,8 +43,12 @@ export const VendorSettingsView = () => {
     storeName: "Ingeni Store Official",
     ownerName: "Ingeni Store Representative",
     supportEmail: "support@ingenistore.rw",
-    phone: "+250728680460",
-    momoNumber: "+250728680460",
+    phone: "+2507xxx",
+    momoCode: "",
+    momoNumber: "+2507xxx",
+    address: "",
+    description: "",
+    logoUrl: "",
     theme: "dark",
     autoAcceptOrders: true,
     emailAlerts: true,
@@ -97,27 +101,59 @@ export const VendorSettingsView = () => {
     if (vendorSettings) {
       setSettings({
         storeName: vendorSettings.storeName || "Ingeni Store Official",
-        ownerName: vendorSettings.ownerName || "Ingeni Store Representative",
-        supportEmail: vendorSettings.supportEmail || "support@ingenistore.rw",
-        phone: vendorSettings.phone || "+250728680460",
-        momoNumber: vendorSettings.momoNumber || "+250728680460",
+        ownerName:
+          vendorSettings.ownerName ||
+          vendorSettings.name ||
+          user?.name ||
+          "Ingeni Store Representative",
+        supportEmail:
+          vendorSettings.supportEmail ||
+          vendorSettings.email ||
+          user?.email ||
+          "support@ingenistore.rw",
+        phone: vendorSettings.phone || user?.phone || "+2507xxxx",
+        momoCode: vendorSettings.momoCode || vendorSettings.momo_code || "",
+        momoNumber:
+          vendorSettings.momoNumber ||
+          vendorSettings.phone ||
+          "+2507xxxx",
+        address: vendorSettings.address || "",
+        description:
+          vendorSettings.description || vendorSettings.businessDescription || "",
+        logoUrl: vendorSettings.logoUrl || vendorSettings.logo_url || "",
         theme: vendorSettings.theme || "dark",
         autoAcceptOrders: vendorSettings.autoAcceptOrders ?? true,
         emailAlerts: vendorSettings.emailAlerts ?? true,
       });
     }
-  }, [vendorSettings]);
+  }, [vendorSettings, user?.name, user?.email, user?.phone]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(false);
     setErrorMessage(null);
+
+    const normalizedPayload = {
+      ...settings,
+      storeName: settings.storeName.trim(),
+      ownerName: settings.ownerName.trim(),
+      supportEmail: settings.supportEmail.trim(),
+      phone: settings.phone.trim(),
+      momoCode: settings.momoCode.trim() || null,
+      momoNumber: settings.momoNumber.trim(),
+      address: settings.address.trim(),
+      description: settings.description.trim(),
+      logoUrl: settings.logoUrl.trim(),
+    };
+
     try {
-      await updateVendorSettings(settings);
+      await updateVendorSettings(normalizedPayload);
       setSaved(true);
       setTimeout(() => setSaved(false), 3500);
     } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to update vendor and user profile settings.");
+      setErrorMessage(
+        err?.message || "Failed to update vendor and user profile settings.",
+      );
     }
   };
 
@@ -150,9 +186,14 @@ export const VendorSettingsView = () => {
     setSubmittingRequest(true);
 
     try {
+      const payoutDestination =
+        settings.momoNumber ||
+        settings.momoCode ||
+        settings.phone ||
+        "Registered MoMo";
       const formattedMessage =
-        adminRequest.type === "CASHOUT" && !cleanMessage.includes("+250")
-          ? `${cleanMessage} (Payout MoMo: ${settings.momoNumber || settings.phone || "Registered MoMo"})`
+        adminRequest.type === "CASHOUT" && !cleanMessage.includes(payoutDestination)
+          ? `${cleanMessage} (Payout MoMo: ${payoutDestination})`
           : cleanMessage;
 
       await submitAdminRequest({
@@ -188,17 +229,22 @@ export const VendorSettingsView = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Settings size={14} className="text-blue-400" />
-            <span className="text-[11px] uppercase tracking-widest text-blue-400">Configuration</span>
+            <span className="text-[11px] uppercase tracking-widest text-blue-400">
+              Configuration
+            </span>
           </div>
           <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white tracking-tight">
-            Store Settings & Management
+            Store Settings &amp; Management
           </h1>
         </div>
         {saved && (
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
             <Check size={14} />
             <span>
-              Saved & synced{settings.emailAlerts && settings.supportEmail ? ` (${settings.supportEmail})` : ""}
+              Saved &amp; synced
+              {settings.emailAlerts && settings.supportEmail
+                ? ` (${settings.supportEmail})`
+                : ""}
             </span>
           </div>
         )}
@@ -219,7 +265,7 @@ export const VendorSettingsView = () => {
             </div>
             <div>
               <h2 className="font-poppins font-bold text-base text-white">
-                Vendor & User Profile Synchronization
+                Vendor &amp; User Profile Synchronization
               </h2>
               <p className="text-[11px] text-gray-400">
                 Updates here synchronize your user account credentials, vendor record, and store details.
@@ -236,32 +282,43 @@ export const VendorSettingsView = () => {
                 type="text"
                 placeholder="e.g. Caleb Habyarimana"
                 value={settings.ownerName}
-                onChange={(e) => setSettings({ ...settings, ownerName: e.target.value })}
+                onChange={(e) =>
+                  setSettings({ ...settings, ownerName: e.target.value })
+                }
                 className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
               />
             </div>
+
             <div>
-              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">Store Name</label>
+              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
+                Store Name
+              </label>
               <input
                 type="text"
                 placeholder="e.g. Ingeni Store"
                 value={settings.storeName}
-                onChange={(e) => setSettings({ ...settings, storeName: e.target.value })}
+                onChange={(e) =>
+                  setSettings({ ...settings, storeName: e.target.value })
+                }
                 className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
               />
             </div>
+
             <div>
               <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
-                Support & Account Email
+                Support &amp; Account Email
               </label>
               <input
                 type="email"
                 placeholder="e.g. callebhabyar55@gmail.com"
                 value={settings.supportEmail}
-                onChange={(e) => setSettings({ ...settings, supportEmail: e.target.value })}
+                onChange={(e) =>
+                  setSettings({ ...settings, supportEmail: e.target.value })
+                }
                 className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
               />
             </div>
+
             <div>
               <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
                 Contact Phone Number
@@ -270,8 +327,55 @@ export const VendorSettingsView = () => {
                 type="text"
                 placeholder="e.g. +250786015225"
                 value={settings.phone}
-                onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                onChange={(e) =>
+                  setSettings({ ...settings, phone: e.target.value })
+                }
                 className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
+                Store Physical Address
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Kigali, Nyarugenge, Biryogo"
+                value={settings.address}
+                onChange={(e) =>
+                  setSettings({ ...settings, address: e.target.value })
+                }
+                className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
+                Store Logo URL
+              </label>
+              <input
+                type="text"
+                placeholder="https://..."
+                value={settings.logoUrl}
+                onChange={(e) =>
+                  setSettings({ ...settings, logoUrl: e.target.value })
+                }
+                className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
+                Store Description / Bio
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Describe your storefront, specialties, delivery coverage, and policies..."
+                value={settings.description}
+                onChange={(e) =>
+                  setSettings({ ...settings, description: e.target.value })
+                }
+                className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition resize-none"
               />
             </div>
           </div>
@@ -295,9 +399,21 @@ export const VendorSettingsView = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { id: "dark", name: "Deep Obsidian", desc: "Default dark interface style with crisp accents." },
-              { id: "midnight", name: "Midnight Blue", desc: "Deep rich indigo/blue shaded tone." },
-              { id: "cyberpunk", name: "Cyber Matrix", desc: "High contrast dark mode styling." },
+              {
+                id: "dark",
+                name: "Deep Obsidian",
+                desc: "Default dark interface style with crisp accents.",
+              },
+              {
+                id: "midnight",
+                name: "Midnight Blue",
+                desc: "Deep rich indigo/blue shaded tone.",
+              },
+              {
+                id: "cyberpunk",
+                name: "Cyber Matrix",
+                desc: "High contrast dark mode styling.",
+              },
             ].map((t) => (
               <div
                 key={t.id}
@@ -309,14 +425,20 @@ export const VendorSettingsView = () => {
                 }`}
               >
                 <div>
-                  <span className="block font-bold text-white text-sm mb-1">{t.name}</span>
-                  <span className="text-[11px] text-gray-400 leading-relaxed block">{t.desc}</span>
+                  <span className="block font-bold text-white text-sm mb-1">
+                    {t.name}
+                  </span>
+                  <span className="text-[11px] text-gray-400 leading-relaxed block">
+                    {t.desc}
+                  </span>
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-wider text-blue-400">
                     {settings.theme === t.id ? "Active Theme" : "Select"}
                   </span>
-                  {settings.theme === t.id && <Check size={14} className="text-blue-400" />}
+                  {settings.theme === t.id && (
+                    <Check size={14} className="text-blue-400" />
+                  )}
                 </div>
               </div>
             ))}
@@ -330,9 +452,11 @@ export const VendorSettingsView = () => {
               <CreditCard size={18} />
             </div>
             <div>
-              <h2 className="font-poppins font-bold text-base text-white">Payout & Mobile Money</h2>
+              <h2 className="font-poppins font-bold text-base text-white">
+                Payout &amp; Mobile Money
+              </h2>
               <p className="text-[11px] text-gray-400">
-                Configure where your sales revenues are automatically deposited.
+                Configure your MoMo Merchant Code and payout phone number for direct customer and cashout transfers.
               </p>
             </div>
           </div>
@@ -340,13 +464,30 @@ export const VendorSettingsView = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
+                MoMo Merchant Code
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 123456"
+                value={settings.momoCode}
+                onChange={(e) =>
+                  setSettings({ ...settings, momoCode: e.target.value })
+                }
+                className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
                 Mobile Money Number (MTN/Airtel)
               </label>
               <input
                 type="text"
-                placeholder="e.g. +250728680460"
+                placeholder="e.g. +2507xxxx"
                 value={settings.momoNumber}
-                onChange={(e) => setSettings({ ...settings, momoNumber: e.target.value })}
+                onChange={(e) =>
+                  setSettings({ ...settings, momoNumber: e.target.value })
+                }
                 className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
               />
             </div>
@@ -361,7 +502,7 @@ export const VendorSettingsView = () => {
             </div>
             <div>
               <h2 className="font-poppins font-bold text-base text-white">
-                Automations & Email Notifications
+                Automations &amp; Email Notifications
               </h2>
               <p className="text-[11px] text-gray-400">
                 Manage alert behaviors, order tracking emails, and operational rules.
@@ -372,7 +513,9 @@ export const VendorSettingsView = () => {
           <div className="space-y-4">
             <label className="flex items-center justify-between p-4 rounded-2xl bg-white/2 border border-white/5 cursor-pointer hover:bg-white/4 transition">
               <div>
-                <span className="block font-bold text-white text-sm">Auto-Accept Incoming Orders</span>
+                <span className="block font-bold text-white text-sm">
+                  Auto-Accept Incoming Orders
+                </span>
                 <span className="text-gray-400 text-[11px]">
                   Automatically shift new customer requests into active fulfillment queues.
                 </span>
@@ -380,7 +523,9 @@ export const VendorSettingsView = () => {
               <input
                 type="checkbox"
                 checked={settings.autoAcceptOrders}
-                onChange={(e) => setSettings({ ...settings, autoAcceptOrders: e.target.checked })}
+                onChange={(e) =>
+                  setSettings({ ...settings, autoAcceptOrders: e.target.checked })
+                }
                 className="w-5 h-5 rounded accent-blue-600 cursor-pointer"
               />
             </label>
@@ -388,17 +533,23 @@ export const VendorSettingsView = () => {
             <label className="flex items-center justify-between p-4 rounded-2xl bg-white/2 border border-white/5 cursor-pointer hover:bg-white/4 transition">
               <div>
                 <span className="block font-bold text-white text-sm md:flex items-center gap-2">
-                  Email Alerts & Status Notifications <Mail size={13} className="text-blue-400" />
+                  Email Alerts &amp; Status Notifications{" "}
+                  <Mail size={13} className="text-blue-400" />
                 </span>
                 <span className="text-gray-400 text-[11px]">
                   Receive email alerts for profile updates, low stock warnings, and admin ticket responses at{" "}
-                  <strong className="text-zinc-200">{settings.supportEmail || "your account email"}</strong>.
+                  <strong className="text-zinc-200">
+                    {settings.supportEmail || "your account email"}
+                  </strong>
+                  .
                 </span>
               </div>
               <input
                 type="checkbox"
                 checked={settings.emailAlerts}
-                onChange={(e) => setSettings({ ...settings, emailAlerts: e.target.checked })}
+                onChange={(e) =>
+                  setSettings({ ...settings, emailAlerts: e.target.checked })
+                }
                 className="w-5 h-5 rounded accent-blue-600 cursor-pointer"
               />
             </label>
@@ -451,7 +602,9 @@ export const VendorSettingsView = () => {
         <form onSubmit={handleAdminRequestSubmit} className="space-y-4 text-xs">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">Request Type</label>
+              <label className="block text-gray-400 uppercase text-[10px] mb-1.5">
+                Request Type
+              </label>
               <select
                 value={adminRequest.type}
                 onChange={(e) => handleRequestTypeChange(e.target.value)}
@@ -479,7 +632,9 @@ export const VendorSettingsView = () => {
                   min={1}
                   placeholder="e.g. 50000"
                   value={adminRequest.amount}
-                  onChange={(e) => setAdminRequest({ ...adminRequest, amount: e.target.value })}
+                  onChange={(e) =>
+                    setAdminRequest({ ...adminRequest, amount: e.target.value })
+                  }
                   className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
@@ -494,13 +649,17 @@ export const VendorSettingsView = () => {
               rows={3}
               placeholder={
                 adminRequest.type === "CASHOUT"
-                  ? `Requesting revenue withdrawal to Mobile Money (${settings.momoNumber || "+250..."})...`
+                  ? `Requesting revenue withdrawal to Mobile Money (${
+                      settings.momoNumber || settings.momoCode || "+250..."
+                    })...`
                   : adminRequest.type === "DASHBOARD_FEATURE"
                   ? "Describe the dashboard feature or store modification you need..."
                   : "Describe your support question or issue..."
               }
               value={adminRequest.message}
-              onChange={(e) => setAdminRequest({ ...adminRequest, message: e.target.value })}
+              onChange={(e) =>
+                setAdminRequest({ ...adminRequest, message: e.target.value })
+              }
               className="w-full p-3.5 rounded-xl bg-white/3 border border-white/10 text-white focus:outline-none focus:border-blue-500 transition resize-none"
               required
             />
@@ -521,12 +680,13 @@ export const VendorSettingsView = () => {
         {safeRequests.length > 0 && (
           <div className="pt-6 border-t border-white/10 space-y-3">
             <h3 className="text-[11px] uppercase tracking-wider text-gray-400 font-bold">
-              Recent Admin Tickets & Responses ({safeRequests.length})
+              Recent Admin Tickets &amp; Responses ({safeRequests.length})
             </h3>
             <div className="space-y-2.5">
-              {safeRequests.slice(0, 5).map((req) => {
+              {safeRequests.slice(0, 5).map((req: any) => {
                 const statusUpper = (req.status || "PENDING").toUpperCase();
-                const isResolved = statusUpper === "RESOLVED" || statusUpper === "APPROVED";
+                const isResolved =
+                  statusUpper === "RESOLVED" || statusUpper === "APPROVED";
                 const isProcessing = statusUpper === "PROCESSING";
                 const isRejected = statusUpper === "REJECTED";
 
@@ -570,7 +730,10 @@ export const VendorSettingsView = () => {
                     <p className="text-gray-300">{req.message}</p>
                     {req.adminNotes && (
                       <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-emerald-300 flex items-start gap-2">
-                        <MessageSquare size={12} className="shrink-0 mt-0.5 text-emerald-400" />
+                        <MessageSquare
+                          size={12}
+                          className="shrink-0 mt-0.5 text-emerald-400"
+                        />
                         <span>
                           <strong>Admin Note:</strong> {req.adminNotes}
                         </span>

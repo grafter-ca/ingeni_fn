@@ -7,7 +7,7 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
 
 const resolveApiBase = (rawUrl: string): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== "undefined" &&
       window.location.hostname === "ingeni.onrender.com");
 
@@ -53,7 +53,20 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Catch cases where dev server fallback returns index.html instead of API JSON
+    if (
+      typeof response.data === "string" &&
+      response.data.trim().toLowerCase().startsWith("<!doctype")
+    ) {
+      return Promise.reject(
+        new Error(
+          `Expected JSON from ${response.config?.url || "API"}, received HTML instead. Check VITE_API_URL or backend server port.`
+        )
+      );
+    }
+    return response;
+  },
   (error) => {
     // Global 401/403 handling hook if needed
     return Promise.reject(error);

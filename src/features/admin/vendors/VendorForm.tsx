@@ -34,6 +34,7 @@ export const VendorForm = () => {
       ...formData,
       storeName: cleanStoreName,
       phone: (formData?.phone ?? "").trim(),
+      momoCode: (formData?.momoCode ?? formData?.momo_code ?? "").trim() || null,
       address: (formData?.address ?? "").trim(),
       description: (formData?.description ?? "").trim(),
       isActive: formData?.isActive ?? true,
@@ -132,7 +133,20 @@ export const VendorForm = () => {
             />
           </div>
 
-          <div className="space-y-1.5 md:col-span-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+              MoMo Merchant Code
+            </label>
+            <input
+              type="text"
+              value={formData.momoCode ?? formData.momo_code ?? ""}
+              onChange={(e) => updateFormData({ momoCode: e.target.value })}
+              placeholder="e.g., 123456"
+              className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500 font-medium"
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
               Store Address
             </label>

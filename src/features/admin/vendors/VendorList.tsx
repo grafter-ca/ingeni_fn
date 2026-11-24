@@ -33,13 +33,34 @@ export const VendorList = memo(() => {
   const displayVendors = useMemo(() => {
     const safeAll = Array.isArray(vendors) ? vendors : [];
     const safeFiltered = Array.isArray(filteredVendors) ? filteredVendors : [];
+    const q = searchQuery.trim().toLowerCase();
 
     // If the store maintains a separate filteredVendors array and filters/searches are active, respect it.
     // Otherwise if filteredVendors hasn't been initialized yet while vendors has items, show vendors.
-    if (safeFiltered.length > 0 || searchQuery.trim() || statusFilter !== "all") {
-      return safeFiltered;
+    const baseList =
+      safeFiltered.length > 0 || q || statusFilter !== "all"
+        ? safeFiltered
+        : safeAll;
+
+    if (!q) return baseList;
+
+    // Also allow matching by momoCode even if the store's filter only checks name/store/email
+    const momoMatches = safeAll.filter((v: any) =>
+      String(v?.momoCode || v?.momo_code || "")
+        .toLowerCase()
+        .includes(q),
+    );
+
+    if (momoMatches.length === 0) return baseList;
+
+    const mergedById = new Map(baseList.map((v: any) => [v.id, v]));
+    for (const match of momoMatches) {
+      if (statusFilter === "active" && !match.isActive) continue;
+      if (statusFilter === "inactive" && match.isActive) continue;
+      mergedById.set(match.id, match);
     }
-    return safeAll;
+
+    return Array.from(mergedById.values());
   }, [vendors, filteredVendors, searchQuery, statusFilter]);
 
   const handleToggleStatus = async (vendorId: string, currentActive: boolean) => {
@@ -80,7 +101,7 @@ export const VendorList = memo(() => {
           />
           <input
             type="text"
-            placeholder="Search merchants by name, store, or email..."
+            placeholder="Search by name, store, email, or MoMo code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-black/50 border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-medium"
@@ -139,7 +160,7 @@ export const VendorList = memo(() => {
                 <tr className="border-b border-white/10 text-[11px] font-bold uppercase tracking-wider text-gray-400 bg-white/1">
                   <th className="p-4 pl-6">Merchant Store</th>
                   <th className="p-4">Owner Name</th>
-                  <th className="p-4">Contact Info</th>
+                  <th className="p-4">Contact &amp; MoMo</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 pr-6 text-right">Actions</th>
                 </tr>
@@ -153,6 +174,7 @@ export const VendorList = memo(() => {
                     vendor.email || vendor.supportEmail || vendor.user?.email || "No email";
                   const contactPhone =
                     vendor.phone || vendor.user?.phone || "No phone listed";
+                  const momoCode = vendor.momoCode || vendor.momo_code || null;
 
                   return (
                     <tr
@@ -187,6 +209,11 @@ export const VendorList = memo(() => {
                       <td className="p-4 text-gray-400 font-mono text-[11px]">
                         <div>{contactEmail}</div>
                         <div className="text-gray-500">{contactPhone}</div>
+                        {momoCode && (
+                          <div className="text-emerald-400 mt-0.5">
+                            MoMo: {momoCode}
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-4">

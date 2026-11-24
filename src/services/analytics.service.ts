@@ -12,7 +12,7 @@ const resolveApiBase = (): string => {
   const isDeployedSite =
     import.meta.env.PROD ||
     (typeof window !== "undefined" &&
-      window.location.hostname === "ingeni.onrender.com");
+      window.location.hostname === "ingeni.onrender.com" || "localhost:5173");
 
   if (isDeployedSite) {
     return "/api";

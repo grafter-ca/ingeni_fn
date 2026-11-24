@@ -2,12 +2,17 @@ import { io, Socket } from "socket.io-client";
 
 const resolveSocketUrl = (): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== "undefined" &&
       window.location.hostname === "ingeni.onrender.com");
 
   if (isDeployedSite && typeof window !== "undefined") {
     return window.location.origin;
+  }
+
+  const rawSocketEnv = (import.meta.env.VITE_SOCKET_URL || "").trim();
+  if (rawSocketEnv) {
+    return rawSocketEnv.replace(/\/+$/, "").replace(/\/api$/, "");
   }
 
   const rawEnvUrl = (import.meta.env.VITE_API_URL || "").trim();

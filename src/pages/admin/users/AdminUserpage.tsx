@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -11,11 +11,13 @@ import AdminOverview, { type LiveRegistryMetric } from "./AdminOverview";
 import GlobalConfig from "./GlobalConfig";
 import SystemLogs from "./SystemLogs";
 import { useAuthActions } from "../../../context/AuthContext";
+import { socket } from "../../../libs/socket";
 
 interface LiveUserRecord {
   id: string;
   role?: string | null;
   emailVerified?: boolean | null;
+  email_verified?: boolean | null;
   image?: string | null;
 }
 
@@ -32,6 +34,7 @@ interface RegistryTelemetryState {
 const AdminUserPage = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const { admin } = useAuthActions();
+  const isMountedRef = useRef(true);
 
   const [telemetry, setTelemetry] = useState<RegistryTelemetryState>({
     total: 0,
@@ -43,7 +46,15 @@ const AdminUserPage = () => {
     loading: true,
   });
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const syncLiveRegistryData = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setTelemetry((prev) => ({ ...prev, loading: true }));
     const startTime = performance.now();
 
@@ -54,13 +65,18 @@ const AdminUserPage = () => {
 
       const users: LiveUserRecord[] = Array.isArray(responseData?.users)
         ? responseData.users
+        : Array.isArray(responseData)
+        ? responseData
         : [];
+
       const totalFromApi =
         typeof responseData?.total === "number"
           ? responseData.total
           : users.length;
 
-      const verifiedCount = users.filter((u) => Boolean(u.emailVerified)).length;
+      const verifiedCount = users.filter((u) =>
+        Boolean(u.emailVerified ?? u.email_verified),
+      ).length;
       const vendorCount = users.filter(
         (u) => String(u.role || "").toLowerCase() === "vendor",
       ).length;
@@ -68,6 +84,7 @@ const AdminUserPage = () => {
         (u) => String(u.role || "").toLowerCase() === "admin",
       ).length;
 
+      if (!isMountedRef.current) return;
       setTelemetry({
         total: totalFromApi,
         verifiedCount,
@@ -80,6 +97,7 @@ const AdminUserPage = () => {
     } catch (err) {
       const elapsedMs = Math.max(1, Math.round(performance.now() - startTime));
       console.error("Live registry telemetry failed:", err);
+      if (!isMountedRef.current) return;
       setTelemetry((prev) => ({
         ...prev,
         latencyMs: elapsedMs,
@@ -91,6 +109,26 @@ const AdminUserPage = () => {
 
   useEffect(() => {
     void syncLiveRegistryData();
+  }, [syncLiveRegistryData]);
+
+  useEffect(() => {
+    const handleRegistryChange = () => {
+      void syncLiveRegistryData();
+    };
+
+    socket?.on?.("user:updated", handleRegistryChange);
+    socket?.on?.("user:deleted", handleRegistryChange);
+    socket?.on?.("vendorCreated", handleRegistryChange);
+    socket?.on?.("vendorUpdated", handleRegistryChange);
+    socket?.on?.("vendorDeleted", handleRegistryChange);
+
+    return () => {
+      socket?.off?.("user:updated", handleRegistryChange);
+      socket?.off?.("user:deleted", handleRegistryChange);
+      socket?.off?.("vendorCreated", handleRegistryChange);
+      socket?.off?.("vendorUpdated", handleRegistryChange);
+      socket?.off?.("vendorDeleted", handleRegistryChange);
+    };
   }, [syncLiveRegistryData]);
 
   const denominator = Math.max(telemetry.total, 1);

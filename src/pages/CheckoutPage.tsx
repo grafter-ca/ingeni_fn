@@ -1,9 +1,9 @@
 // src/pages/CheckoutPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useCartStore } from "../store/cartStore";
 import { useOrderStore } from "../store/useOrderStore";
 import { useVendorStore } from "../store/vendorStore";
-import CheckoutForm from "../components/forms/ChechoutForm";
+import { CheckoutForm } from "../components/forms/CheckoutForm";
 import {
   Headset,
   MessageCircle,
@@ -17,6 +17,8 @@ import {
   Check,
   Truck,
   PackageCheck,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import type { PaymentMethod } from "../types/api";
@@ -38,12 +40,10 @@ const getItemVendorId = (item: any): string | undefined =>
 
 const CheckoutPage = () => {
   const { items, clearCart, getTotalPrice, getTotalItems } = useCartStore();
-  const { vendors, fetchVendors } = useVendorStore();
+  const { vendors, fetchVendorDirectory } = useVendorStore();
   const { user } = useAuthState();
   const [showPaymentGate, setShowPaymentGate] = useState(false);
-  const [copiedVendorPhone, setCopiedVendorPhone] = useState<string | null>(
-    null,
-  );
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const userId = user?.id || null;
 
   const { createOrder, loading, error } = useOrderStore();
@@ -61,14 +61,67 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (vendors.length === 0) {
-      fetchVendors().catch(() => {});
+      fetchVendorDirectory().catch(() => {});
     }
-  }, [vendors.length, fetchVendors]);
+  }, [vendors.length, fetchVendorDirectory]);
+
+  useEffect(() => {
+    if (user && showPaymentGate) {
+      setShowPaymentGate(false);
+    }
+  }, [user, showPaymentGate]);
 
   const supportTeam = {
     phone: "+250786015225",
     email: "team@ingenistore.com",
   };
+
+  // Unique vendors in the current cart using Vendor fields (storeName, phone, momoCode, accountName)
+  const cartVendors = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          items.map((item) => {
+            const resolvedVendorId = getItemVendorId(item);
+            const vendorRecord: any = vendors.find(
+              (v) => v.id === resolvedVendorId,
+            );
+            const productVendor: any = (item as any)?.product?.vendor;
+            const key = resolvedVendorId || item.id;
+            return [
+              key,
+              {
+                id: resolvedVendorId || key,
+                storeName:
+                  vendorRecord?.storeName ||
+                  productVendor?.storeName ||
+                  "Vendor Store",
+                accountName:
+                  vendorRecord?.momoAccountName ||
+                  vendorRecord?.accountName ||
+                  vendorRecord?.ownerName ||
+                  productVendor?.momoAccountName ||
+                  productVendor?.accountName ||
+                  null,
+                phone:
+                  vendorRecord?.phone ||
+                  vendorRecord?.momoNumber ||
+                  productVendor?.phone ||
+                  productVendor?.momoNumber ||
+                  null,
+                momoCode:
+                  vendorRecord?.momoCode ||
+                  vendorRecord?.momo_code ||
+                  productVendor?.momoCode ||
+                  productVendor?.momo_code ||
+                  null,
+              },
+            ];
+          }),
+        ).values(),
+      ),
+    [items, vendors],
+  );
 
   if (items.length === 0) {
     return (
@@ -103,40 +156,24 @@ const CheckoutPage = () => {
   const tax = total * 0.18;
   const grandTotal = total + tax + shipping;
 
-  // Unique vendors in the current cart using Vendor fields (storeName, phone)
-  const cartVendors = Array.from(
-    new Map(
-      items.map((item) => {
-        const resolvedVendorId = getItemVendorId(item);
-        const vendorRecord = vendors.find((v) => v.id === resolvedVendorId);
-        const key = resolvedVendorId || item.id;
-        return [
-          key,
-          {
-            id: resolvedVendorId || key,
-            storeName:
-              vendorRecord?.storeName ||
-              (item as any)?.product?.vendor?.storeName ||
-              "Vendor Store",
-            phone:
-              vendorRecord?.phone ||
-              (item as any)?.product?.vendor?.phone ||
-              null,
-          },
-        ];
-      }),
-    ).values(),
-  );
-
-  const handleCopyPhone = async (phone: string) => {
+  const handleCopy = async (value: string) => {
     try {
-      await navigator.clipboard.writeText(phone);
-      setCopiedVendorPhone(phone);
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
       setTimeout(() => {
-        setCopiedVendorPhone((prev) => (prev === phone ? null : prev));
+        setCopiedValue((prev) => (prev === value ? null : prev));
       }, 2000);
     } catch {
       // Clipboard fallback ignored if blocked
+    }
+  };
+
+  const triggerCheckoutSubmit = () => {
+    const formEl = document.getElementById(
+      "checkout-form",
+    ) as HTMLFormElement | null;
+    if (formEl) {
+      formEl.requestSubmit();
     }
   };
 
@@ -156,31 +193,31 @@ const CheckoutPage = () => {
     paymentProofFile?: File;
     paymentProofUrl?: string;
   }) => {
-const validatedItems = items.map((item: any) => {
-  const rawId = item.productId || item.id;
-  const cleanId = rawId
-    ? String(rawId).replace(/^local-/i, "").replace(/^fake-/i, "")
-    : "";
-  if (!cleanId) {
-    throw new Error(`${item.name} is missing productId`);
-  }
+    const validatedItems = items.map((item: any) => {
+      const rawId = item.productId || item.id;
+      const cleanId = rawId
+        ? String(rawId).replace(/^local-/i, "").replace(/^fake-/i, "")
+        : "";
+      if (!cleanId) {
+        throw new Error(`${item.name} is missing productId`);
+      }
 
-  const resolvedVendorId =
-    getItemVendorId(item) ||
-    vendors.find((v) => v.storeName === item.storeName)?.id;
+      const resolvedVendorId =
+        getItemVendorId(item) ||
+        vendors.find((v) => v.storeName === item.storeName)?.id;
 
-  if (!resolvedVendorId) {
-    throw new Error(
-      `${item.name} is missing vendorId assignment for multi-vendor distribution`,
-    );
-  }
+      if (!resolvedVendorId) {
+        throw new Error(
+          `${item.name} is missing vendorId assignment for multi-vendor distribution`,
+        );
+      }
 
-  return {
-    productId: cleanId,
-    vendorId: resolvedVendorId,
-    quantity: Number(item.quantity || 1),
-  };
-});
+      return {
+        productId: cleanId,
+        vendorId: resolvedVendorId,
+        quantity: Number(item.quantity || 1),
+      };
+    });
 
     const payload = {
       items: validatedItems,
@@ -245,6 +282,7 @@ const validatedItems = items.map((item: any) => {
           <div className="lg:col-span-7">
             <div className="flex items-center gap-3 mb-6">
               <button
+                type="button"
                 onClick={() => navigate(-1)}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-white/5 rounded-full text-gray-700 dark:text-white transition-colors"
                 aria-label="Go back"
@@ -321,74 +359,206 @@ const validatedItems = items.map((item: any) => {
               </div>
 
               {selectedPayment === "MOBILE_MONEY" && (
-                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
+                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                       <Smartphone size={14} />
-                      Mobile Money (MoMo) Payment Numbers
+                      Mobile Money (MoMo) Payment Details
                     </p>
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300">
-                      Direct Vendor MoMo
+                      MTN MoMo &amp; Airtel Money • RWF{" "}
+                      {grandTotal.toLocaleString()}
                     </span>
                   </div>
 
                   <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                    You can send your Mobile Money (MoMo) payment directly to the
-                    vendor&apos;s registered phone number listed below, or use
-                    your MoMo payment code to complete and verify your order:
+                    Pay via the vendor&apos;s MoMo merchant code or registered
+                    mobile number below, verify the recipient name before
+                    confirming, and enter your transaction reference or payment
+                    proof in the form above:
                   </p>
 
-                  <div className="space-y-2 pt-1">
+                  <div className="space-y-2.5 pt-1">
                     {cartVendors.map((vendor) => (
                       <div
                         key={vendor.id}
-                        className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white/90 dark:bg-black/40 px-3.5 py-2.5 rounded-xl border border-gray-200/80 dark:border-white/10"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs bg-white/95 dark:bg-black/40 p-3.5 rounded-xl border border-gray-200/80 dark:border-white/10"
                       >
-                        <div>
-                          <span className="font-semibold text-gray-900 dark:text-white block">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-gray-900 dark:text-white block">
                             {vendor.storeName}
                           </span>
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                            Registered MoMo / Mobile Number
+                          {vendor.accountName && (
+                            <span className="text-[11px] text-gray-600 dark:text-gray-300 block">
+                              Recipient Name:{" "}
+                              <strong className="font-semibold">
+                                {vendor.accountName}
+                              </strong>
+                            </span>
+                          )}
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                            {vendor.momoCode && vendor.phone
+                              ? `Merchant MoMo Code: ${vendor.momoCode} • MoMo Number: ${vendor.phone}`
+                              : vendor.momoCode
+                                ? `Merchant MoMo Code: ${vendor.momoCode}`
+                                : vendor.phone
+                                  ? `Registered MoMo Number: ${vendor.phone}`
+                                  : "No direct MoMo credentials listed — contact support"}
                           </span>
                         </div>
 
-                        {vendor.phone ? (
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`tel:${vendor.phone}`}
-                              className="inline-flex items-center gap-1.5 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                              <Phone size={13} />
-                              {vendor.phone}
-                            </a>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {vendor.momoCode && (
                             <button
                               type="button"
-                              onClick={() => void handleCopyPhone(vendor.phone!)}
-                              title="Copy MoMo number"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-blue-600 hover:text-white text-[11px] font-medium transition cursor-pointer"
+                              onClick={() => void handleCopy(vendor.momoCode!)}
+                              title="Copy MoMo payment code"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600/10 hover:bg-blue-600 hover:text-white text-blue-700 dark:text-blue-300 font-mono font-bold text-[11px] transition cursor-pointer"
                             >
-                              {copiedVendorPhone === vendor.phone ? (
+                              {copiedValue === vendor.momoCode ? (
                                 <>
-                                  <Check size={12} className="text-emerald-500" />
-                                  Copied
+                                  <Check
+                                    size={12}
+                                    className="text-emerald-500"
+                                  />
+                                  Copied Code
                                 </>
                               ) : (
                                 <>
                                   <Copy size={12} />
-                                  Copy
+                                  MoMo Code: {vendor.momoCode}
                                 </>
                               )}
                             </button>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">
-                            No vendor phone — support: {supportTeam.phone}
-                          </span>
-                        )}
+                          )}
+
+                          {vendor.phone ? (
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={`tel:${vendor.phone}`}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline text-[11px]"
+                              >
+                                <Phone size={12} />
+                                {vendor.phone}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => void handleCopy(vendor.phone!)}
+                                title="Copy MoMo number"
+                                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-blue-600 hover:text-white text-[11px] font-medium transition cursor-pointer"
+                              >
+                                {copiedValue === vendor.phone ? (
+                                  <>
+                                    <Check
+                                      size={12}
+                                      className="text-emerald-500"
+                                    />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={12} />
+                                    Copy
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            !vendor.momoCode && (
+                              <a
+                                href={`tel:${supportTeam.phone}`}
+                                className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                Support: {supportTeam.phone}
+                              </a>
+                            )
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
+
+                  <div className="pt-1 flex items-start gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                    <ShieldCheck
+                      size={14}
+                      className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+                    />
+                    <span>
+                      Keep your MoMo transaction ID or SMS receipt handy until
+                      your order payment status is verified.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {selectedPayment === "CREDIT_CARD" && (
+                <div className="mt-5 p-4 rounded-2xl bg-gray-50 dark:bg-white/3 border border-gray-200 dark:border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <CreditCard size={14} className="text-blue-500" />
+                      Card Payment Information
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-200/80 dark:bg-white/10 text-gray-700 dark:text-gray-300">
+                      3D Secure • RWF {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                    Supports Visa and Mastercard. Ensure international/online
+                    card transactions and 3D Secure / OTP prompts are enabled on
+                    your issuing bank card.
+                  </p>
+                </div>
+              )}
+
+              {selectedPayment === "CASH_ON_DELIVERY" && (
+                <div className="mt-5 p-4 rounded-2xl bg-gray-50 dark:bg-white/3 border border-gray-200 dark:border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <Banknote size={14} className="text-emerald-500" />
+                      Cash on Delivery (COD) Details
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      Pay Upon Handover • RWF {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                    Settle{" "}
+                    <strong className="text-gray-900 dark:text-white">
+                      RWF {grandTotal.toLocaleString()}
+                    </strong>{" "}
+                    in exact cash with the delivery rider upon inspection at your
+                    delivery address. Keep your phone reachable for dispatch
+                    coordination.
+                  </p>
+                </div>
+              )}
+
+              {selectedPayment === "WORKFORCE_WALLET" && (
+                <div className="mt-5 p-4 rounded-2xl bg-gray-50 dark:bg-white/3 border border-gray-200 dark:border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <Wallet size={14} className="text-blue-500" />
+                      Workforce Wallet Settlement
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                      Instant Wallet Debit • RWF {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed flex items-start gap-1.5">
+                    <Info
+                      size={14}
+                      className="text-blue-500 shrink-0 mt-0.5"
+                    />
+                    <span>
+                      Deducts{" "}
+                      <strong className="text-gray-900 dark:text-white">
+                        RWF {grandTotal.toLocaleString()}
+                      </strong>{" "}
+                      directly from your eligible Workforce Wallet balance. Make
+                      sure your account is signed in and has sufficient funds
+                      before confirming.
+                    </span>
+                  </p>
                 </div>
               )}
             </div>
@@ -404,11 +574,15 @@ const validatedItems = items.map((item: any) => {
               <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                 {items.map((item: any) => {
                   const resolvedVendorId = getItemVendorId(item);
-                  const itemVendor = vendors.find(
+                  const itemVendor: any = vendors.find(
                     (v) => v.id === resolvedVendorId,
                   );
                   const vendorPhone =
                     itemVendor?.phone || item?.product?.vendor?.phone;
+                  const vendorMomoCode =
+                    itemVendor?.momoCode ||
+                    (itemVendor as any)?.momo_code ||
+                    item?.product?.vendor?.momoCode;
                   const lineTotal = Number(item.price || 0) * item.quantity;
 
                   return (
@@ -425,7 +599,8 @@ const validatedItems = items.map((item: any) => {
                         </h3>
                         <p className="text-xs text-gray-500">
                           Qty: {item.quantity}
-                          {vendorPhone ? ` • MoMo/Tel: ${vendorPhone}` : ""}
+                          {vendorMomoCode ? ` • MoMo: ${vendorMomoCode}` : ""}
+                          {vendorPhone ? ` • Tel: ${vendorPhone}` : ""}
                         </p>
                       </div>
 
@@ -516,9 +691,7 @@ const validatedItems = items.map((item: any) => {
                   onClose={() => setShowPaymentGate(false)}
                   onProceedToPayment={() => {
                     setShowPaymentGate(false);
-                    document
-                      .querySelector<HTMLFormElement>("#checkout-form")
-                      ?.requestSubmit();
+                    triggerCheckoutSubmit();
                   }}
                 />
               )}
@@ -529,9 +702,7 @@ const validatedItems = items.map((item: any) => {
                   if (!user) {
                     setShowPaymentGate(true);
                   } else {
-                    document
-                      .querySelector<HTMLFormElement>("#checkout-form")
-                      ?.requestSubmit();
+                    triggerCheckoutSubmit();
                   }
                 }}
                 disabled={loading}
