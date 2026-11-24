@@ -3,16 +3,19 @@ import { authClient } from "../libs/auth-client";
 import type { LoginPayload, RegisterPayloadProps } from "../types/api";
 
 const resolveFrontendUrl = (): string => {
-  if (
-    typeof window !== "undefined" &&
-    window.location.hostname === "ingeni.onrender.com" || "localhost:5173"
-  ) {
-    return window.location.origin.replace(/\/+$/, "");
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (
+      hostname === "ingeni.onrender.com" ||
+      hostname === "localhost" ||
+      hostname === "127.0.0.1"
+    ) {
+      return window.location.origin.replace(/\/+$/, "");
+    }
   }
 
   const envUrl =
-    import.meta.env.VITE_FRONTEND_URL ||
-    import.meta.env.VITE_APP_URL;
+    import.meta.env.VITE_FRONTEND_URL || import.meta.env.VITE_APP_URL;
 
   if (envUrl && String(envUrl).trim()) {
     return String(envUrl).trim().replace(/\/+$/, "");
@@ -106,11 +109,10 @@ export const authService = {
       query: query || { limit: 10, offset: 0 },
     }),
 
- // --- 1B. PASSWORD RECOVERY ---
+  // --- 1B. PASSWORD RECOVERY ---
   requestPasswordReset: async (email: string, redirectTo?: string) => {
     const frontendBase = resolveFrontendUrl();
-    const targetUrl =
-      redirectTo || `${frontendBase}/reset-password`;
+    const targetUrl = redirectTo || `${frontendBase}/reset-password`;
 
     return await authClient.requestPasswordReset({
       email: email.trim().toLowerCase(),
@@ -139,4 +141,3 @@ export const authService = {
 
   useSession: authClient.useSession,
 };
-
