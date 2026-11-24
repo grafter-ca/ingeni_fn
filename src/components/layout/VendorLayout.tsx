@@ -20,6 +20,8 @@ import { useAuthState } from "../../context/AuthContext";
 import { socket } from "../../libs/socket";
 import Logout from "../../components/ui/Logout";
 
+const VENDOR_ALLOWED_ROLES = new Set(["vendor", "admin", "super_admin"]);
+
 const VendorLayout = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -38,29 +40,48 @@ const VendorLayout = () => {
   } = useOrderStore();
   const { fetchCategories, fetchVendorProducts } = useProductStore();
   const { fetchVendorFinancials, requests } = useVendorStore();
-  const { user } = useAuthState();
+  const authState = useAuthState() as {
+    user?: { id?: string; vendorId?: string; name?: string; email?: string; role?: string } | null;
+    isLoading?: boolean;
+    loading?: boolean;
+  };
 
+  const user = authState?.user ?? null;
+  const isAuthLoading = Boolean(authState?.isLoading ?? authState?.loading);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const canAccessVendorData = Boolean(user?.id) && VENDOR_ALLOWED_ROLES.has(normalizedRole);
   const vendorId = user?.vendorId || user?.id;
 
   useEffect(() => {
     initSocket();
+    void fetchCategories();
+  }, [initSocket, fetchCategories]);
+
+  useEffect(() => {
+    if (isAuthLoading || !canAccessVendorData) {
+      return;
+    }
+
     void fetchVendorOrders();
     void fetchVendorProducts();
-    void fetchCategories();
     if (vendorId) {
       void fetchVendorFinancials(vendorId);
     }
   }, [
-    initSocket,
+    isAuthLoading,
+    canAccessVendorData,
+    vendorId,
     fetchVendorOrders,
     fetchVendorProducts,
-    fetchCategories,
-    vendorId,
     fetchVendorFinancials,
   ]);
 
   // Refresh vendor orders & financials on live socket order/payment events
   useEffect(() => {
+    if (isAuthLoading || !canAccessVendorData) {
+      return;
+    }
+
     const handleLiveVendorOrderEvent = () => {
       void fetchVendorOrders();
       if (vendorId) {
@@ -79,7 +100,13 @@ const VendorLayout = () => {
       socket?.off?.("orderDeleted", handleLiveVendorOrderEvent);
       socket?.off?.("payment:updated", handleLiveVendorOrderEvent);
     };
-  }, [fetchVendorOrders, fetchVendorFinancials, vendorId]);
+  }, [
+    isAuthLoading,
+    canAccessVendorData,
+    fetchVendorOrders,
+    fetchVendorFinancials,
+    vendorId,
+  ]);
 
   // Close dropdowns on outside click
   useEffect(() => {
