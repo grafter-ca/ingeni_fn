@@ -1,3 +1,4 @@
+// src/libs/auth-client.ts
 import { createAuthClient } from "better-auth/react";
 import {
   adminClient,
@@ -5,28 +6,10 @@ import {
   multiSessionClient,
   lastLoginMethodClient,
 } from "better-auth/client/plugins";
-
-const resolveAuthBaseUrl = (): string => {
-  const isDeployedSite =
-    import.meta.env.PROD ||
-    (typeof window !== "undefined" &&
-      window.location.hostname === "ingeni.onrender.com");
-
-  if (isDeployedSite && typeof window !== "undefined") {
-    return window.location.origin;
-  }
-
-  const rawUrl = (
-    import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com"
-  )
-    .trim()
-    .replace(/\/+$/, "");
-
-  return rawUrl.replace(/\/api$/, "");
-};
+import { resolveApiOrigin } from "./api-base";
 
 export const authClient = createAuthClient({
-  baseURL: resolveAuthBaseUrl(),
+  baseURL: resolveApiOrigin(),
   plugins: [
     adminClient(),
     organizationClient(),

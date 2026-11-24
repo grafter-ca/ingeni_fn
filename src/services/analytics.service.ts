@@ -1,4 +1,6 @@
 // src/services/analytics.service.ts
+import { resolveApiBaseUrl } from "../libs/api-base";
+
 export interface TrafficClickPayload {
   actionType: "whatsapp" | "call";
   productId?: string;
@@ -7,24 +9,6 @@ export interface TrafficClickPayload {
 
 const recentClicks = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 1500;
-
-const resolveApiBase = (): string => {
-  const raw = (import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
-
-  if (raw) {
-    return raw.endsWith("/api") ? raw : `${raw}/api`;
-  }
-
-  if (
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1")
-  ) {
-    return "http://localhost:8000/api";
-  }
-
-  return "https://ingeri-api.onrender.com/api";
-};
 
 export async function trackTrafficClick(
   data: TrafficClickPayload,
@@ -39,7 +23,7 @@ export async function trackTrafficClick(
     }
     recentClicks.set(key, now);
 
-    const apiUrl = resolveApiBase();
+    const apiUrl = resolveApiBaseUrl();
     const response = await fetch(`${apiUrl}/analytics/track-click`, {
       method: "POST",
       headers: {
