@@ -23,6 +23,7 @@ interface OrderState {
   setStatusFilter: (status: string) => void;
   applyFilters: () => void;
   clearOrder: () => void;
+  resetOrders: () => void;
 
   // --- USER ACTIONS ---
   createOrder: (payload: CreateOrderDto) => Promise<Order>;
@@ -49,9 +50,15 @@ interface OrderState {
   getVendorNetBalance: (vendorId?: string) => number;
 }
 
-function mergeOrderRecord(existing: Order | undefined | null, incoming: any): Order {
+function mergeOrderRecord(
+  existing: Order | undefined | null,
+  incoming: any,
+): Order {
   const unwrapped =
-    incoming && typeof incoming === "object" && "order" in incoming && incoming.order
+    incoming &&
+    typeof incoming === "object" &&
+    "order" in incoming &&
+    incoming.order
       ? incoming.order
       : incoming;
 
@@ -65,6 +72,21 @@ function mergeOrderRecord(existing: Order | undefined | null, incoming: any): Or
     items: Array.isArray(unwrapped?.items) ? unwrapped.items : existing.items,
   };
 }
+
+function isAuthFailure(err: unknown): boolean {
+  const msg =
+    err && typeof err === "object" && "message" in err
+      ? String((err as { message?: string }).message || "")
+      : "";
+  return (
+    msg.includes("(401)") ||
+    msg.includes("(403)") ||
+    msg.toUpperCase().includes("UNAUTHORIZED")
+  );
+}
+
+// Track in-flight list fetches to prevent burst duplicate calls
+let inFlightListFetch: Promise<void> | null = null;
 
 export const useOrderStore = create<OrderState>((set, get) => ({
   loading: false,
@@ -155,7 +177,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   applyFilters: () => {
     const { orders, statusFilter } = get();
 
-    if (!statusFilter || statusFilter.toLowerCase() === "all") {
+    if (!statusFilter || statusFilter.trim().toLowerCase() === "all") {
       set({ filteredOrders: orders });
     } else {
       set({
@@ -170,6 +192,16 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   // --- CLEAR CURRENT ORDER ---
   clearOrder: () => set({ currentOrder: null, error: null }),
+
+  // --- RESET ALL ORDERS (e.g., on logout / role change) ---
+  resetOrders: () =>
+    set({
+      orders: [],
+      filteredOrders: [],
+      currentOrder: null,
+      error: null,
+      loading: false,
+    }),
 
   // --- CREATE ORDER ---
   createOrder: async (payload) => {
@@ -206,17 +238,28 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   // --- FETCH USER ORDERS ---
   fetchMyOrders: async () => {
-    try {
-      set({ loading: true, error: null });
-      const orders = await OrderClient.getMyOrders();
-      set({ orders: Array.isArray(orders) ? orders : [], loading: false });
-      get().applyFilters();
-    } catch (err: any) {
-      set({
-        error: err?.message || "Failed to fetch orders",
-        loading: false,
-      });
+    if (inFlightListFetch) {
+      return inFlightListFetch;
     }
+
+    inFlightListFetch = (async () => {
+      try {
+        set({ loading: true, error: null });
+        const orders = await OrderClient.getMyOrders();
+        set({ orders: Array.isArray(orders) ? orders : [], loading: false });
+        get().applyFilters();
+      } catch (err: any) {
+        set({
+          ...(isAuthFailure(err) ? { orders: [], filteredOrders: [] } : {}),
+          error: err?.message || "Failed to fetch orders",
+          loading: false,
+        });
+      } finally {
+        inFlightListFetch = null;
+      }
+    })();
+
+    return inFlightListFetch;
   },
 
   fetchOrderById: async (id: string) => {
@@ -242,6 +285,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         transactionReference,
       );
 
+      let mergedResult: Order | null = null;
       set((state) => {
         const existingInList = state.orders.find(
           (o) => String(o.id) === String(orderId),
@@ -250,6 +294,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           existingInList || state.currentOrder,
           rawUpdated,
         );
+        mergedResult = merged;
 
         return {
           orders: state.orders.map((o) =>
@@ -265,7 +310,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       });
 
       get().applyFilters();
-      return mergeOrderRecord(get().currentOrder, rawUpdated);
+      return mergedResult || mergeOrderRecord(get().currentOrder, rawUpdated);
     } catch (err: any) {
       set({
         error: err?.message || "Failed to submit payment proof",
@@ -277,35 +322,60 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   // --- VENDOR ORDERS ---
   fetchVendorOrders: async () => {
-    try {
-      set({ loading: true, error: null });
-      const orders = await OrderClient.getVendorOrders();
-      set({ orders: Array.isArray(orders) ? orders : [], loading: false });
-      get().applyFilters();
-    } catch (err: any) {
-      set({
-        error: err?.message || "Failed to fetch vendor orders",
-        loading: false,
-      });
+    if (inFlightListFetch) {
+      return inFlightListFetch;
     }
+
+    inFlightListFetch = (async () => {
+      try {
+        set({ loading: true, error: null });
+        const orders = await OrderClient.getVendorOrders();
+        set({ orders: Array.isArray(orders) ? orders : [], loading: false });
+        get().applyFilters();
+      } catch (err: any) {
+        set({
+          ...(isAuthFailure(err) ? { orders: [], filteredOrders: [] } : {}),
+          error: err?.message || "Failed to fetch vendor orders",
+          loading: false,
+        });
+      } finally {
+        inFlightListFetch = null;
+      }
+    })();
+
+    return inFlightListFetch;
   },
 
   // --- ADMIN ORDERS ---
   fetchAllOrders: async (status) => {
-    try {
-      set({ loading: true, error: null });
-      const targetFilter = status || get().statusFilter;
-      const queryParam = targetFilter === "all" ? undefined : targetFilter;
-
-      const orders = await OrderClient.getAllOrders(queryParam);
-      set({ orders: Array.isArray(orders) ? orders : [], loading: false });
-      get().applyFilters();
-    } catch (err: any) {
-      set({
-        error: err?.message || "Failed to fetch all orders",
-        loading: false,
-      });
+    if (inFlightListFetch) {
+      return inFlightListFetch;
     }
+
+    inFlightListFetch = (async () => {
+      try {
+        set({ loading: true, error: null });
+        const rawFilter = (status ?? get().statusFilter)?.trim();
+        const queryParam =
+          !rawFilter || rawFilter.toLowerCase() === "all"
+            ? undefined
+            : rawFilter.toUpperCase();
+
+        const orders = await OrderClient.getAllOrders(queryParam);
+        set({ orders: Array.isArray(orders) ? orders : [], loading: false });
+        get().applyFilters();
+      } catch (err: any) {
+        set({
+          ...(isAuthFailure(err) ? { orders: [], filteredOrders: [] } : {}),
+          error: err?.message || "Failed to fetch all orders",
+          loading: false,
+        });
+      } finally {
+        inFlightListFetch = null;
+      }
+    })();
+
+    return inFlightListFetch;
   },
 
   // --- UPDATE ORDER STATUS ---
@@ -404,7 +474,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             : o,
         ),
         currentOrder:
-          state.currentOrder && String(state.currentOrder.id) === String(orderId)
+          state.currentOrder &&
+          String(state.currentOrder.id) === String(orderId)
             ? mergeOrderRecord(state.currentOrder, rawUpdated)
             : state.currentOrder,
         loading: false,

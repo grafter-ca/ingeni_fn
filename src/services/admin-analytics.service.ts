@@ -2,7 +2,12 @@
 import { localApi } from "../libs/api";
 import type { TrafficStat } from "../types/admin";
 
-export async function fetchVendorTrafficStats(vendorId: string): Promise<TrafficStat[]> {
+export async function fetchVendorTrafficStats(
+  vendorId: string,
+): Promise<TrafficStat[]> {
+  if (!vendorId) {
+    return [];
+  }
   const result = await localApi.get<any>(`/analytics/vendor/${vendorId}`);
-  return result.data || result;
+  return Array.isArray(result) ? result : (result?.data ?? []);
 }
