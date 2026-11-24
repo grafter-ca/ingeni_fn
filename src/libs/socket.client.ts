@@ -4,24 +4,22 @@ const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
 const RAW_SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || '').trim();
 
 const resolveSocketOrigin = (rawUrl: string, rawSocketUrl: string): string => {
-  const isDeployedSite =
-    Boolean(import.meta.env.PROD) ||
-    (typeof window !== 'undefined' &&
-      window.location.hostname === 'ingeni.onrender.com');
-
-  if (isDeployedSite && typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-
   const preferred = rawSocketUrl || rawUrl;
-  if (!preferred) {
-    return 'https://ingeri-api.onrender.com';
+  if (preferred) {
+    return preferred
+      .replace(/\/+$/, '')
+      .replace(/\/api$/, '')
+      .replace(/\/ws$/, '');
   }
 
-  return preferred
-    .replace(/\/+$/, '')
-    .replace(/\/api$/, '')
-    .replace(/\/ws$/, '');
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname === 'localhost'
+  ) {
+    return 'http://localhost:8000';
+  }
+
+  return 'https://ingeri-api.onrender.com';
 };
 
 const SOCKET_ORIGIN = resolveSocketOrigin(RAW_API_URL, RAW_SOCKET_URL);
