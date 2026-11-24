@@ -1,12 +1,10 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Package,
   Plus,
   Search,
   Trash2,
   Edit3,
-  Upload,
-  X,
   Loader2,
   MapPin,
   Store,
@@ -20,6 +18,7 @@ import {
 } from "lucide-react";
 import { useVendorStore } from "../../store/vendorStore";
 import { useProductStore } from "../../store/productStore";
+import { ProductForm } from "../../components/forms/ProductForm";
 import Button from "../../components/ui/Button";
 import { useAuthState } from "../../context/AuthContext";
 import { toast } from "react-hot-toast";
@@ -52,46 +51,21 @@ export const ProductManagement = () => {
     fetchCategories,
     fetchVendorProducts,
     setSelectedVendorId,
-    addProduct,
-    updateProduct,
+    setEditingProduct,
+    isEditing,
     removeProduct,
     isLoading,
   } = useProductStore();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(
-    null,
-  );
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] =
     useState<string>("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(6);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuthState();
 
-  // Multi-file upload states
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [existingImages, setExistingImages] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const vendorId = user?.id || "";
-
-  const clearObjectPreviews = useCallback((urls: string[]) => {
-    urls.forEach((url) => {
-      if (url.startsWith("blob:")) {
-        URL.revokeObjectURL(url);
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      clearObjectPreviews(imagePreviews);
-    };
-  }, [clearObjectPreviews, imagePreviews]);
 
   // Sync vendor context, dashboard telemetry stats, and product catalog on mount
   useEffect(() => {
@@ -109,202 +83,56 @@ export const ProductManagement = () => {
     fetchVendorDashboardData,
   ]);
 
-  // Form State
-  const [form, setForm] = useState({
-    title: "",
-    price: "",
-    stock: "",
-    categoryId: "",
-    description: "",
-    location: "Kigali",
-  });
-
-  // Sync default category ID once categories are successfully fetched from backend
-  useEffect(() => {
-    if (categories.length > 0) {
-      const categoryExists = categories.some(
-        (cat: any) => String(cat.id) === String(form.categoryId),
-      );
-      if (!form.categoryId || !categoryExists) {
-        setForm((prev) => ({
-          ...prev,
-          categoryId: String(categories[0].id).replace(/^(local-|fake-)/, ""),
-        }));
-      }
-    }
-  }, [categories, form.categoryId]);
-
   // Reset pagination to page 1 when search or category filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategoryFilter, pageSize]);
 
-  // Handle multiple files selection from device
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const newFilesArray = Array.from(files);
-      setSelectedFiles((prev) => [...prev, ...newFilesArray]);
-
-      const newPreviews = newFilesArray.map((file) => URL.createObjectURL(file));
-      setImagePreviews((prev) => [...prev, ...newPreviews]);
+  const refreshVendorCatalog = useCallback(() => {
+    if (vendorId) {
+      void fetchVendorProducts(vendorId);
+      void fetchVendorDashboardData();
     }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+  }, [vendorId, fetchVendorProducts, fetchVendorDashboardData]);
 
-  const handleRemoveNewFile = (index: number) => {
-    const targetUrl = imagePreviews[index];
-    if (targetUrl?.startsWith("blob:")) {
-      URL.revokeObjectURL(targetUrl);
-    }
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-  };
+  const handleOpenCreateModal = useCallback(() => {
+    setEditingProduct(null);
+    setIsFormOpen(true);
+  }, [setEditingProduct]);
 
-  const handleRemoveExistingImage = (index: number) => {
-    setExistingImages((prev) => prev.filter((_, i) => i !== index));
-  };
+  const handleOpenEditModal = useCallback(
+    (product: any) => {
+      setEditingProduct(product);
+      setIsFormOpen(true);
+    },
+    [setEditingProduct],
+  );
 
-  const handleOpenCreateModal = () => {
-    clearObjectPreviews(imagePreviews);
-    setIsEditMode(false);
-    setSelectedProductId(null);
-    setSelectedFiles([]);
-    setImagePreviews([]);
-    setExistingImages([]);
+  const handleCloseForm = useCallback(() => {
+    setIsFormOpen(false);
+    setEditingProduct(null);
+    refreshVendorCatalog();
+  }, [setEditingProduct, refreshVendorCatalog]);
 
-    const rawCatId = categories.length > 0 ? String(categories[0].id) : "";
-    const cleanDefaultCatId = rawCatId.replace(/^(local-|fake-)/, "");
+  useEffect(() => {
+    if (!isFormOpen) return;
 
-    setForm({
-      title: "",
-      price: "",
-      stock: "",
-      categoryId: cleanDefaultCatId,
-      description: "",
-      location: "Kigali",
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEditModal = (product: any) => {
-    clearObjectPreviews(imagePreviews);
-    setIsEditMode(true);
-    setSelectedProductId(product.id);
-    setSelectedFiles([]);
-    setImagePreviews([]);
-
-    const productImages = Array.isArray(product.images)
-      ? product.images
-          .map((img: any) => (typeof img === "string" ? img : img?.url))
-          .filter(Boolean)
-      : [];
-
-    setExistingImages(productImages);
-
-    const rawProdCatId = String(
-      product.categoryId || product.category?.id || "",
-    );
-    const cleanProdCatId = rawProdCatId.replace(/^(local-|fake-)/, "");
-
-    const matchingCategory = categories.find(
-      (cat: any) =>
-        String(cat.id).replace(/^(local-|fake-)/, "") === cleanProdCatId,
-    );
-
-    const resolvedCategoryId = matchingCategory
-      ? String(matchingCategory.id).replace(/^(local-|fake-)/, "")
-      : categories[0]?.id
-        ? String(categories[0].id).replace(/^(local-|fake-)/, "")
-        : "";
-
-    setForm({
-      title: product.title || "",
-      price: product.price?.toString() || "",
-      stock: product.stock?.toString() || "",
-      categoryId: resolvedCategoryId,
-      description: product.description || "",
-      location: product.location || "Kigali",
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleSubmitProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title || !form.price) {
-      toast.error("Please provide a product title and price.");
-      return;
-    }
-
-    if (!form.categoryId) {
-      toast.error("Please select a valid category.");
-      return;
-    }
-
-    if (!vendorId) {
-      toast.error("Vendor session not found. Please log in again.");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const cleanCategoryId = String(form.categoryId).replace(
-        /^(local-|fake-)/,
-        "",
-      );
-
-      const formDataPayload = new FormData();
-      formDataPayload.append("title", form.title);
-      formDataPayload.append("price", String(form.price));
-      formDataPayload.append("stock", String(form.stock || "10"));
-      formDataPayload.append("categoryId", cleanCategoryId);
-      formDataPayload.append("description", form.description);
-      formDataPayload.append("location", form.location || "Kigali");
-      formDataPayload.append("vendorId", vendorId);
-
-      selectedFiles.forEach((file) => {
-        formDataPayload.append("images", file);
-      });
-
-      if (isEditMode && existingImages.length > 0) {
-        existingImages.forEach((imgUrl) => {
-          formDataPayload.append("images_to_keep", imgUrl);
-        });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsFormOpen(false);
+        setEditingProduct(null);
       }
+    };
 
-      if (isEditMode && selectedProductId) {
-        const cleanId = String(selectedProductId).replace(
-          /^(local-|fake-)/,
-          "",
-        );
-        await updateProduct(cleanId, formDataPayload);
-        toast.success("Product successfully updated.");
-      } else {
-        await addProduct(vendorId, formDataPayload);
-        toast.success(
-          "Product successfully created and assigned to your catalog.",
-        );
-      }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
 
-      clearObjectPreviews(imagePreviews);
-      setImagePreviews([]);
-      setSelectedFiles([]);
-      setIsModalOpen(false);
-      if (vendorId) {
-        void fetchVendorProducts(vendorId);
-        void fetchVendorDashboardData();
-      }
-    } catch (error: any) {
-      toast.error(
-        error?.message || "Operation failed. Please verify your inputs.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFormOpen, setEditingProduct]);
 
   const handleDeleteProduct = async (productId: string) => {
     if (
@@ -316,11 +144,8 @@ export const ProductManagement = () => {
         const cleanId = String(productId).replace(/^(local-|fake-)/, "");
         await removeProduct(cleanId);
         toast.success("Product deleted successfully.");
-        if (vendorId) {
-          void fetchVendorProducts(vendorId);
-          void fetchVendorDashboardData();
-        }
-      } catch (error) {
+        refreshVendorCatalog();
+      } catch {
         toast.error("Failed to delete product.");
       }
     }
@@ -348,10 +173,16 @@ export const ProductManagement = () => {
       const locationMatch = String(product.location || "")
         .toLowerCase()
         .includes(q);
+      const skuMatch = String(product.sku || "")
+        .toLowerCase()
+        .includes(q);
+      const brandMatch = String(product.brand || "")
+        .toLowerCase()
+        .includes(q);
       const idMatch = String(product.id || "")
         .toLowerCase()
         .includes(q);
-      return titleMatch || locationMatch || idMatch;
+      return titleMatch || locationMatch || skuMatch || brandMatch || idMatch;
     });
   }, [filteredProducts, searchQuery, selectedCategoryFilter]);
 
@@ -383,6 +214,10 @@ export const ProductManagement = () => {
 
   const vendorDisplayName =
     user?.name || user?.email?.split("@")[0] || "Vendor Store Portal";
+
+  const resolvedFormVendorId = isEditing?.vendorId || vendorId;
+  const resolvedFormVendorName =
+    isEditing?.vendor?.storeName || vendorDisplayName || "Active Merchant";
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -456,10 +291,10 @@ export const ProductManagement = () => {
           />
           <input
             type="text"
-            placeholder="Search inventory items by title, location, or ID..."
+            placeholder="Search by title, SKU, brand, location, or ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/ border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-blue-500/50 transition placeholder:text-gray-500"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-blue-500/50 transition placeholder:text-gray-500"
           />
         </div>
 
@@ -534,7 +369,7 @@ export const ProductManagement = () => {
             </p>
           </div>
         ) : (
-          paginatedProducts.map((product) => {
+          paginatedProducts.map((product: any) => {
             const imageUrl =
               typeof product.images?.[0] === "string"
                 ? product.images[0]
@@ -573,7 +408,7 @@ export const ProductManagement = () => {
                               : "bg-black/70 text-white border-white/10"
                         }`}
                       >
-                        Stock: {stockVal}
+                        Stock: {stockVal} {product.unit || ""}
                       </span>
                     </div>
                     {product.location && (
@@ -583,12 +418,31 @@ export const ProductManagement = () => {
                     )}
                   </div>
                   <div className="p-5">
-                    <h3 className="font-poppins font-bold text-base text-white mb-1 line-clamp-1">
-                      {product.title}
-                    </h3>
-                    <p className="font-mono text-xs text-blue-400 font-bold mb-2">
-                      RWF {Number(product.price || 0).toLocaleString()}
-                    </p>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <h3 className="font-poppins font-bold text-base text-white line-clamp-1">
+                        {product.title}
+                      </h3>
+                      {product.brand && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-gray-300 shrink-0">
+                          {product.brand}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mb-2 font-mono text-xs">
+                      <span className="text-blue-400 font-bold">
+                        RWF {Number(product.price || 0).toLocaleString()}
+                      </span>
+                      {product.compareAtPrice && (
+                        <span className="text-gray-500 line-through text-[11px]">
+                          RWF {Number(product.compareAtPrice).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    {product.sku && (
+                      <p className="font-mono text-[10px] text-gray-500 mb-1.5">
+                        SKU: {product.sku}
+                      </p>
+                    )}
                     <p className="font-mono text-[11px] text-gray-400 line-clamp-2">
                       {product.description || "No description provided."}
                     </p>
@@ -706,253 +560,33 @@ export const ProductManagement = () => {
         </div>
       </div>
 
-      {/* --- ADD / EDIT PRODUCT MODAL --- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-lg rounded-3xl bg-[#0c0c0e] border border-white/10 p-6 md:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-              <h2 className="font-poppins font-bold text-lg text-white">
-                {isEditMode ? "Edit Inventory Item" : "Add New Inventory Item"}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleSubmitProduct}
-              className="space-y-4 font-mono text-xs"
-            >
-              <div>
-                <label className="block text-gray-400 uppercase text-[10px] mb-1">
-                  Product Title
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Organic Product"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full p-3 rounded-xl bg-white/ border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-400 uppercase text-[10px] mb-1">
-                    Price (RWF)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    placeholder="15000"
-                    value={form.price}
-                    onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-white/ border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 uppercase text-[10px] mb-1">
-                    Stock Quantity
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="100"
-                    value={form.stock}
-                    onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-white/ border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-400 uppercase text-[10px] mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={form.categoryId}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        categoryId: e.target.value.replace(
-                          /^(local-|fake-)/,
-                          "",
-                        ),
-                      })
-                    }
-                    required
-                    className="w-full p-3 rounded-xl bg-[#121215] border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
-                  >
-                    <option value="" disabled>
-                      Select a valid category
-                    </option>
-                    {categories.map((cat: any) => {
-                      const cleanCatId = String(cat.id).replace(
-                        /^(local-|fake-)/,
-                        "",
-                      );
-                      return (
-                        <option key={cat.id} value={cleanCatId}>
-                          {cat.name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-400 uppercase text-[10px] mb-1">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Kigali Market"
-                    value={form.location}
-                    onChange={(e) =>
-                      setForm({ ...form, location: e.target.value })
-                    }
-                    className="w-full p-3 rounded-xl bg-white/ border border-white/10 text-white focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-              </div>
-
-              {/* Multi-Image Upload Section */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-gray-400 uppercase text-[10px]">
-                    Product Images (Multiple allowed)
-                  </label>
-                  <span className="text-[10px] text-blue-400">
-                    {existingImages.length + imagePreviews.length} total
-                  </span>
-                </div>
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                />
-
-                {(existingImages.length > 0 || imagePreviews.length > 0) && (
-                  <div className="grid grid-cols-4 gap-2 mb-3">
-                    {existingImages.map((url, idx) => (
-                      <div
-                        key={`existing-${idx}`}
-                        className="relative h-20 rounded-xl overflow-hidden border border-white/10 bg-black/40 group"
-                      >
-                        <img
-                          src={url}
-                          alt={`Existing ${idx}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute bottom-1 left-1 px-1 rounded bg-black/60 text-[8px] text-gray-300">
-                          Saved
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveExistingImage(idx)}
-                          className="absolute top-1 right-1 p-1 rounded-full bg-rose-600 text-white opacity-90 hover:opacity-100 transition cursor-pointer"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    ))}
-
-                    {imagePreviews.map((previewUrl, idx) => (
-                      <div
-                        key={`new-${idx}`}
-                        className="relative h-20 rounded-xl overflow-hidden border border-blue-500/40 bg-black/40 group"
-                      >
-                        <img
-                          src={previewUrl}
-                          alt={`New ${idx}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute bottom-1 left-1 px-1 rounded bg-blue-600/80 text-[8px] text-white">
-                          New
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveNewFile(idx)}
-                          className="absolute top-1 right-1 p-1 rounded-full bg-rose-600 text-white opacity-90 hover:opacity-100 transition cursor-pointer"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border border-dashed border-white/20 hover:border-blue-500/50 rounded-2xl p-4 bg-white/ transition cursor-pointer flex flex-col items-center justify-center gap-2 text-center"
-                >
-                  <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    <Upload size={18} />
-                  </div>
-                  <div>
-                    <p className="text-white font-medium text-xs">
-                      Click to browse &amp; select images
-                    </p>
-                    <p className="text-gray-500 text-[10px] mt-0.5">
-                      You can select multiple PNG, JPG, or WEBP files
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-400 uppercase text-[10px] mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Provide details about the product quality, origin, or specifications..."
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                  className="w-full p-3 rounded-xl bg-white/ border border-white/10 text-white focus:outline-none focus:border-blue-500 transition resize-none"
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3">
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-3 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-500 transition shadow-lg shadow-blue-600/25 cursor-pointer flex items-center gap-2 min-w-32.5 justify-center"
-                >
-                  {isSubmitting && (
-                    <Loader2 size={14} className="animate-spin" />
-                  )}
-                  {isSubmitting
-                    ? "Saving..."
-                    : isEditMode
-                      ? "Update Product"
-                      : "Save Product"}
-                </button>
-              </div>
-            </form>
+      {/* --- REUSABLE PRODUCT FORM MODAL --- */}
+      {isFormOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            setIsFormOpen(false);
+            setEditingProduct(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <ProductForm
+              key={isEditing?.id ?? "new"}
+              productId={isEditing?.id || null}
+              vendorId={resolvedFormVendorId}
+              vendorName={resolvedFormVendorName}
+              onClose={handleCloseForm}
+            />
           </div>
         </div>
       )}
     </div>
   );
 };
+
+export default ProductManagement;
