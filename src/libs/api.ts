@@ -4,21 +4,18 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
   .trim()
   .replace(/\/+$/, "");
 
+const DEFAULT_API_BASE = "https://ingeri-api.onrender.com/api";
+
 const resolveApiBase = (rawUrl: string): string => {
-  const isDeployedSite =
-    Boolean(import.meta.env.PROD) ||
-    (typeof window !== "undefined" &&
-      window.location.hostname === "ingeni.onrender.com");
-
-  if (isDeployedSite) {
-    return rawUrl ? (rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`) : "/api";
-  }
-
   if (rawUrl) {
     return rawUrl.endsWith("/api") ? rawUrl : `${rawUrl}/api`;
   }
 
-  return "https://ingeri-api.onrender.com/api";
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "http://localhost:8000/api";
+  }
+
+  return DEFAULT_API_BASE;
 };
 
 const LOCAL_BASE = resolveApiBase(RAW_VITE_API_URL);
