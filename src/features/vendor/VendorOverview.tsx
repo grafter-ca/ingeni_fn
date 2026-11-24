@@ -17,6 +17,8 @@ import { useProductStore } from "../../store/productStore";
 import { useAuthState } from "../../context/AuthContext";
 import { useVendorStore } from "../../store/vendorStore";
 
+const VENDOR_ALLOWED_ROLES = new Set(["vendor", "admin", "super_admin"]);
+
 const isPaidOrder = (order: any) => {
   const payStatus = String(order?.paymentStatus || "").toUpperCase();
   const status = String(order?.status || "").toUpperCase();
@@ -76,15 +78,38 @@ export const VendorOverview = () => {
     getVendorNetBalance,
   } = useOrderStore();
   const { products, fetchVendorProducts } = useProductStore();
-  const { user } = useAuthState();
+  const authState = useAuthState() as {
+    user?: {
+      id?: string;
+      vendorId?: string;
+      name?: string;
+      email?: string;
+      role?: string;
+    } | null;
+    isLoading?: boolean;
+    loading?: boolean;
+  };
   const { selectedVendor, fetchVendorDashboardData, fetchVendorById } =
     useVendorStore();
 
+  const user = authState?.user ?? null;
+  const isAuthLoading = Boolean(authState?.isLoading ?? authState?.loading);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const canAccessVendorData =
+    Boolean(user?.id) && VENDOR_ALLOWED_ROLES.has(normalizedRole);
+
   const userId = user?.id;
-  const vendorId = selectedVendor?.id || (user as any)?.vendorId;
+  const vendorId = selectedVendor?.id || user?.vendorId;
 
   useEffect(() => {
     initSocket();
+  }, [initSocket]);
+
+  useEffect(() => {
+    if (isAuthLoading || !canAccessVendorData) {
+      return;
+    }
+
     void fetchVendorOrders();
     void fetchVendorProducts(vendorId);
     void fetchVendorDashboardData();
@@ -92,7 +117,8 @@ export const VendorOverview = () => {
       void fetchVendorById(userId);
     }
   }, [
-    initSocket,
+    isAuthLoading,
+    canAccessVendorData,
     userId,
     vendorId,
     fetchVendorOrders,

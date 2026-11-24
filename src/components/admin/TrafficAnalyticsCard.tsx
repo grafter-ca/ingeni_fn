@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MessageCircle,
   Phone,
@@ -106,6 +106,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
   const [stats, setStats] = useState<NormalizedStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
 
   // Modal State for Clicks Breakdown
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -135,8 +136,12 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
 
   const loadStats = useCallback(
     async (isCancelled?: () => boolean) => {
+      const requestId = ++requestSeqRef.current;
+      const isStale = () =>
+        Boolean(isCancelled?.()) || requestId !== requestSeqRef.current;
+
       if (!vendorId) {
-        if (!isCancelled?.()) {
+        if (!isStale()) {
           setStats([]);
           setError('Missing vendor identifier.');
           setLoading(false);
@@ -145,7 +150,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
       }
 
       try {
-        if (!isCancelled?.()) {
+        if (!isStale()) {
           setLoading(true);
           setError(null);
         }
@@ -153,16 +158,16 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
         const rawData = await fetchVendorTrafficStats(vendorId);
         const normalized = normalizeStatsPayload(rawData as TrafficStat[] | any);
 
-        if (!isCancelled?.()) {
+        if (!isStale()) {
           setStats(normalized);
         }
       } catch (err: any) {
-        if (!isCancelled?.()) {
+        if (!isStale()) {
           setStats([]);
           setError(err?.message || 'Error loading traffic analytics');
         }
       } finally {
-        if (!isCancelled?.()) {
+        if (!isStale()) {
           setLoading(false);
         }
       }
@@ -173,6 +178,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
   useEffect(() => {
     if (isAuthLoading) return;
     if (!user) {
+      requestSeqRef.current += 1;
       setLoading(false);
       return;
     }

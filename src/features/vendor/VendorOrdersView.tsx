@@ -22,6 +22,9 @@ import {
   Wallet,
 } from "lucide-react";
 import { useOrderStore } from "../../store/useOrderStore";
+import { useAuthState } from "../../context/AuthContext";
+
+const VENDOR_ALLOWED_ROLES = new Set(["vendor", "admin", "super_admin"]);
 
 type PaymentMethod =
   | "MOBILE_MONEY"
@@ -99,8 +102,20 @@ export const VendorOrdersView = () => {
     updatePaymentStatus,
     setStatusFilter,
     statusFilter,
+    deleteOrder,
     removeOrder,
   } = useOrderStore() as any;
+
+  const authState = useAuthState() as {
+    user?: { id?: string; role?: string } | null;
+    isLoading?: boolean;
+    loading?: boolean;
+  };
+  const user = authState?.user ?? null;
+  const isAuthLoading = Boolean(authState?.isLoading ?? authState?.loading);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const canAccessVendorData =
+    Boolean(user?.id) && VENDOR_ALLOWED_ROLES.has(normalizedRole);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("ALL");
@@ -111,10 +126,13 @@ export const VendorOrdersView = () => {
   const itemsPerPage = 6;
 
   useEffect(() => {
-    if (typeof fetchVendorOrders === "function") {
-      fetchVendorOrders();
+    if (isAuthLoading || !canAccessVendorData) {
+      return;
     }
-  }, [fetchVendorOrders]);
+    if (typeof fetchVendorOrders === "function") {
+      void fetchVendorOrders();
+    }
+  }, [isAuthLoading, canAccessVendorData, fetchVendorOrders]);
 
   const handleStatusChange = (status: string) => {
     if (typeof setStatusFilter === "function") {
@@ -205,12 +223,15 @@ export const VendorOrdersView = () => {
   );
 
   const handleDeleteOrder = async (orderId: string) => {
-    if (window.confirm("Are you sure you want to delete this order record?")) {
-      if (typeof removeOrder === "function") {
-        await removeOrder(orderId);
+    if (
+      window.confirm("Are you sure you want to delete this order record?")
+    ) {
+      const cancelFn = deleteOrder || removeOrder;
+      if (typeof cancelFn === "function") {
+        await cancelFn(orderId);
       }
-      if (typeof fetchVendorOrders === "function") {
-        fetchVendorOrders();
+      if (canAccessVendorData && typeof fetchVendorOrders === "function") {
+        await fetchVendorOrders();
       }
     }
   };
@@ -482,7 +503,7 @@ export const VendorOrdersView = () => {
                             value={order.paymentStatus || "INITIALIZED"}
                             onChange={(e) => {
                               if (typeof updatePaymentStatus === "function") {
-                                updatePaymentStatus(order.id, e.target.value);
+                                void updatePaymentStatus(order.id, e.target.value);
                               }
                             }}
                             className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
@@ -584,7 +605,7 @@ export const VendorOrdersView = () => {
                             value={order.status}
                             onChange={(e) => {
                               if (typeof updateOrderStatus === "function") {
-                                updateOrderStatus(order.id, e.target.value);
+                                void updateOrderStatus(order.id, e.target.value);
                               }
                             }}
                             className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
@@ -719,6 +740,10 @@ export const VendorOrdersView = () => {
           const netAmt =
             storedEarnings > 0 ? storedEarnings : totalAmt - commAmt;
 
+          const orderItems = Array.isArray(selectedOrderDetails.items)
+            ? selectedOrderDetails.items
+            : [];
+
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
               <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-[#0c0c0e] border border-white/10 shadow-2xl p-6 sm:p-8 space-y-6">
@@ -774,96 +799,58 @@ export const VendorOrdersView = () => {
                     Customer Information
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-white/2 border border-white/10 font-mono text-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
-                        <Mail size={16} />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-500 block uppercase">
-                          Email Address
-                        </span>
-                        <span className="text-white">{detailCustEmail}</span>
-                      </div>
+                    <div className="flex items-center gap-2.5 text-gray-300">
+                      <Mail size={14} className="text-blue-400 shrink-0" />
+                      <span className="truncate">{detailCustEmail}</span>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
-                        <Phone size={16} />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-500 block uppercase">
-                          Phone Number
-                        </span>
-                        <span className="text-white">{detailCustPhone}</span>
-                      </div>
+                    <div className="flex items-center gap-2.5 text-gray-300">
+                      <Phone size={14} className="text-emerald-400 shrink-0" />
+                      <span>{detailCustPhone}</span>
                     </div>
-
-                    <div className="flex items-center gap-3 sm:col-span-2">
-                      <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
-                        <MapPin size={16} />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-500 block uppercase">
-                          Customer Address
-                        </span>
-                        <span className="text-white line-clamp-1">
-                          {detailShippingAddr}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2.5 text-gray-300 sm:col-span-2">
+                      <MapPin size={14} className="text-amber-400 shrink-0" />
+                      <span>{detailShippingAddr}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <h3 className="font-poppins font-semibold text-sm text-gray-300 uppercase tracking-wider">
-                    Order Items
+                    Order Items ({orderItems.length})
                   </h3>
-                  <div className="rounded-2xl bg-white/2 border border-white/10 overflow-hidden font-mono text-xs">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/10 text-gray-500 text-[10px] uppercase">
-                          <th className="py-3 px-4">Item</th>
-                          <th className="py-3 px-4 text-center">Qty</th>
-                          <th className="py-3 px-4 text-right">Price</th>
-                          <th className="py-3 px-4 text-right">Location</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {Array.isArray(selectedOrderDetails.items) &&
-                        selectedOrderDetails.items.length > 0 ? (
-                          selectedOrderDetails.items.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-white/2">
-                              <td className="py-3 px-4 font-bold text-white">
-                                {item.product?.title ||
-                                  item.title ||
-                                  `Product #${idx + 1}`}
-                              </td>
-                              <td className="py-3 px-4 text-center text-gray-300">
-                                {item.quantity || 0}
-                              </td>
-                              <td className="py-3 px-4 text-right text-blue-400">
-                                RWF{" "}
-                                {Number(
-                                  item.priceAtPurchase || item.price || 0,
-                                ).toLocaleString()}
-                              </td>
-                              <td className="py-3 px-4 text-right text-blue-400">
-                                {item.product?.location || "N/A"}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td
-                              colSpan={4}
-                              className="py-4 text-center text-gray-500"
-                            >
-                              No items available for this order.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                  <div className="rounded-2xl bg-white/2 border border-white/10 divide-y divide-white/5 font-mono text-xs">
+                    {orderItems.length === 0 ? (
+                      <div className="p-4 text-gray-500 text-center">
+                        No line-item details attached to this order.
+                      </div>
+                    ) : (
+                      orderItems.map((item, idx) => {
+                        const title =
+                          item.title ||
+                          item.product?.title ||
+                          `Item #${idx + 1}`;
+                        const qty = Number(item.quantity || 1);
+                        const unitPrice = Number(
+                          item.priceAtPurchase ?? item.price ?? 0,
+                        );
+                        return (
+                          <div
+                            key={item.id || idx}
+                            className="p-3.5 flex items-center justify-between gap-4"
+                          >
+                            <div>
+                              <div className="text-white font-bold">{title}</div>
+                              <div className="text-[11px] text-gray-500">
+                                Qty: {qty} × RWF {unitPrice.toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="text-blue-400 font-bold">
+                              RWF {(qty * unitPrice).toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useOrderStore } from "../../../store/useOrderStore";
+import { useAuthState } from "../../../context/AuthContext";
 import {
   Loader2,
   ShieldAlert,
@@ -24,6 +25,7 @@ import {
   Wallet,
   Banknote,
   Smartphone,
+  Trash2,
 } from "lucide-react";
 import type { Order, OrderItem } from "../../../types/api";
 import toast from "react-hot-toast";
@@ -40,6 +42,7 @@ interface EmailNotificationInfo {
   reason?: string;
 }
 
+const ADMIN_ALLOWED_ROLES = new Set(["admin", "super_admin"]);
 const COMMISSION_RATE = 0.08;
 const VENDOR_SHARE_RATE = 1 - COMMISSION_RATE; // 0.92
 
@@ -104,6 +107,17 @@ export default function AdminOrders() {
     updatePaymentStatus,
   } = useOrderStore();
 
+  const authState = useAuthState() as {
+    user?: { id?: string; role?: string } | null;
+    isLoading?: boolean;
+    loading?: boolean;
+  };
+  const user = authState?.user ?? null;
+  const isAuthLoading = Boolean(authState?.isLoading ?? authState?.loading);
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const canAccessAdminOrders =
+    Boolean(user?.id) && ADMIN_ALLOWED_ROLES.has(normalizedRole);
+
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(
@@ -122,8 +136,11 @@ export default function AdminOrders() {
   const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
+    if (isAuthLoading || !canAccessAdminOrders) {
+      return;
+    }
     void fetchAllOrders();
-  }, [fetchAllOrders]);
+  }, [isAuthLoading, canAccessAdminOrders, fetchAllOrders]);
 
   const getOrderCode = (order: Order) =>
     (order as any).orderNumber || `#${order.id.slice(-8).toUpperCase()}`;
@@ -135,40 +152,40 @@ export default function AdminOrders() {
     return "Global Marketplace";
   };
 
-const resolveItemVendorDisplay = (
-  item: any,
-  order: any,
-): { name: string; meta?: string } => {
-  const orderVendors = Array.isArray(order?.vendors) ? order.vendors : [];
-  const vendorId =
-    item?.vendorId ||
-    item?.product?.vendorId ||
-    item?.vendor?.id ||
-    item?.product?.vendor?.id;
+  const resolveItemVendorDisplay = (
+    item: any,
+    order: any,
+  ): { name: string; meta?: string } => {
+    const orderVendors = Array.isArray(order?.vendors) ? order.vendors : [];
+    const vendorId =
+      item?.vendorId ||
+      item?.product?.vendorId ||
+      item?.vendor?.id ||
+      item?.product?.vendor?.id;
 
-  const matchedVendor = vendorId
-    ? orderVendors.find((v: any) => v?.id === vendorId)
-    : undefined;
+    const matchedVendor = vendorId
+      ? orderVendors.find((v: any) => v?.id === vendorId)
+      : undefined;
 
-  const vendorObj =
-    item?.vendor || item?.product?.vendor || matchedVendor || undefined;
+    const vendorObj =
+      item?.vendor || item?.product?.vendor || matchedVendor || undefined;
 
-  const name =
-    vendorObj?.businessName ||
-    vendorObj?.storeName ||
-    vendorObj?.name ||
-    item?.vendorName ||
-    item?.product?.vendorName ||
-    order?.vendor?.businessName ||
-    order?.vendor?.storeName ||
-    order?.vendor?.name ||
-    "Unassigned Vendor";
+    const name =
+      vendorObj?.businessName ||
+      vendorObj?.storeName ||
+      vendorObj?.name ||
+      item?.vendorName ||
+      item?.product?.vendorName ||
+      order?.vendor?.businessName ||
+      order?.vendor?.storeName ||
+      order?.vendor?.name ||
+      "Unassigned Vendor";
 
-  const metaParts = [vendorObj?.phone, vendorObj?.email].filter(Boolean);
-  const meta = metaParts.length > 0 ? metaParts.join(" · ") : undefined;
+    const metaParts = [vendorObj?.phone, vendorObj?.email].filter(Boolean);
+    const meta = metaParts.length > 0 ? metaParts.join(" · ") : undefined;
 
-  return { name, meta };
-};
+    return { name, meta };
+  };
 
   const getOrderCommissionState = (order: Order) => {
     const total = Number(order.totalAmount || 0);
@@ -787,7 +804,10 @@ const resolveItemVendorDisplay = (
                 </div>
 
                 <div className="mt-1 text-[11px] text-zinc-400">
-                  Paid: <strong className="text-emerald-400">{stat.paidVolume}</strong>{" "}
+                  Paid:{" "}
+                  <strong className="text-emerald-400">
+                    {stat.paidVolume}
+                  </strong>{" "}
                   ({formatRwf(stat.paidAmount)})
                 </div>
               </button>
@@ -949,55 +969,28 @@ const resolveItemVendorDisplay = (
                         className="hover:bg-zinc-800/40 transition-colors group"
                       >
                         <td className="p-4">
-                          <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-zinc-100 group-hover:text-emerald-400 transition-colors">
-                            <span>{orderCode}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-xs font-bold text-zinc-200">
+                              {orderCode}
+                            </span>
                             <button
                               type="button"
                               onClick={() => void handleCopyCode(orderCode)}
-                              className="p-1 text-zinc-500 hover:text-zinc-200 rounded transition cursor-pointer"
-                              title="Copy Order Reference"
+                              className="text-zinc-500 hover:text-zinc-200 cursor-pointer"
+                              title="Copy Order Code"
                             >
                               <Copy size={12} />
                             </button>
                           </div>
-                          <div className="text-xs text-zinc-400 mt-0.5">
-                            {order.user?.name || order.email || "Guest Checkout"}
+                          <div className="text-xs text-zinc-300 font-medium mt-1">
+                            {order.user?.name || "Guest Checkout"}
                           </div>
-                          {order.email && (
-                            <div className="text-[11px] text-zinc-500 truncate max-w-50">
-                              {order.email}
-                            </div>
-                          )}
-                          {emailInfo && (
-                            <div className="mt-1">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono border ${
-                                  emailInfo.success
-                                    ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
-                                    : "bg-zinc-800 text-zinc-400 border-zinc-700"
-                                }`}
-                                title={
-                                  emailInfo.messageId ||
-                                  emailInfo.reason ||
-                                  "Email dispatch status"
-                                }
-                              >
-                                {emailInfo.success ? (
-                                  <>
-                                    <Send size={9} /> Email Sent
-                                  </>
-                                ) : (
-                                  <>
-                                    <AlertCircle size={9} />{" "}
-                                    {emailInfo.reason || "No Email"}
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          )}
+                          <div className="text-[11px] text-zinc-500">
+                            {order.email || order.user?.email || "No email"}
+                          </div>
                         </td>
 
-                        <td className="p-4">
+                        <td className="p-4 font-mono text-xs">
                           <div className="font-bold text-zinc-100">
                             {formatRwf(state.total)}
                           </div>
@@ -1006,32 +999,29 @@ const resolveItemVendorDisplay = (
                           </div>
                         </td>
 
-                        {/* Payment Status */}
                         <td className="p-4">
                           <div className="flex flex-col gap-1.5 items-start">
                             <span
-                              className={getPaymentBadgeClass(order.paymentStatus)}
+                              className={getPaymentBadgeClass(
+                                order.paymentStatus,
+                              )}
                             >
-                              {order.paymentStatus}
+                              {order.paymentStatus || "INITIALIZED"}
                             </span>
                             <select
                               disabled={updatingPaymentId === order.id}
+                              value={order.paymentStatus || "INITIALIZED"}
                               onChange={(e) =>
                                 void handlePaymentStatusChange(
                                   order,
                                   e.target.value,
                                 )
                               }
-                              value={order.paymentStatus}
-                              className="text-[10px] bg-zinc-900 text-zinc-300 border border-zinc-800 rounded-lg p-1 font-medium outline-none focus:border-emerald-500 cursor-pointer disabled:opacity-50"
+                              className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-[11px] text-zinc-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
                             >
-                              {PAYMENT_STATUS_OPTIONS.map((opt) => (
-                                <option
-                                  key={opt}
-                                  value={opt}
-                                  className="bg-zinc-900 text-zinc-200"
-                                >
-                                  Set {opt}
+                              {PAYMENT_STATUS_OPTIONS.map((p) => (
+                                <option key={p} value={p}>
+                                  {p}
                                 </option>
                               ))}
                             </select>
@@ -1039,68 +1029,78 @@ const resolveItemVendorDisplay = (
                         </td>
 
                         <td className="p-4">
-                          <span className={getStatusBadgeClass(order.status)}>
-                            {order.status}
-                          </span>
+                          <div className="flex flex-col gap-1.5 items-start">
+                            <span className={getStatusBadgeClass(order.status)}>
+                              {order.status}
+                            </span>
+                            <select
+                              disabled={updatingId === order.id}
+                              value={order.status}
+                              onChange={(e) =>
+                                void handleStatusChange(order, e.target.value)
+                              }
+                              className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-[11px] text-zinc-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                            >
+                              {STATUS_OPTIONS.filter((s) => s !== "ALL").map(
+                                (st) => (
+                                  <option key={st} value={st}>
+                                    {st}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                            {emailInfo && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400">
+                                {emailInfo.success ? (
+                                  <CheckCircle2
+                                    size={11}
+                                    className="text-emerald-400"
+                                  />
+                                ) : (
+                                  <AlertCircle
+                                    size={11}
+                                    className="text-amber-400"
+                                  />
+                                )}
+                                {emailInfo.success ? "Email sent" : "No email"}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
-                        {/* Commission Split & Readiness */}
-                        <td className="p-4 text-xs">
+                        <td className="p-4 font-mono text-xs">
                           {state.isReturned ? (
-                            <div>
-                              <span className="text-orange-400 font-semibold">
-                                Returned / Reversed
-                              </span>
-                              <p className="text-zinc-500 text-[10px]">
-                                Excluded from 8% commission
-                              </p>
-                            </div>
-                          ) : !state.isPaid ? (
-                            <div>
-                              <span className="text-zinc-500 font-medium italic">
-                                No Commission Yet
-                              </span>
-                              <p className="text-zinc-600 text-[10px]">
-                                Awaiting SUCCESS payment
-                              </p>
-                            </div>
-                          ) : state.isLocked ? (
+                            <span className="text-orange-400 font-semibold">
+                              Returned / Refunded
+                            </span>
+                          ) : state.isPaid ? (
                             <div className="space-y-0.5">
-                              <span className="inline-flex items-center gap-1 text-emerald-400 font-bold">
-                                <CheckCircle2 size={12} /> Commission Locked
-                              </span>
-                              <p className="text-zinc-300">
-                                Fee (8%): RWF {state.commission.toLocaleString()}
-                              </p>
-                              <p className="text-zinc-400 text-[10px]">
-                                Vendor Net (92%): RWF{" "}
-                                {state.vendorPayout.toLocaleString()}
-                              </p>
+                              <div className="text-emerald-400 font-bold">
+                                Fee: {formatRwf(state.commission)}
+                              </div>
+                              <div className="text-zinc-300">
+                                Net: {formatRwf(state.vendorPayout)}
+                              </div>
+                              <div className="text-[10px] text-zinc-500">
+                                {state.isLocked
+                                  ? "Locked (Delivered)"
+                                  : "Awaiting Delivery"}
+                              </div>
                             </div>
                           ) : (
-                            <div className="space-y-0.5">
-                              <span className="text-blue-400 font-semibold">
-                                Paid (Pending Delivery)
-                              </span>
-                              <p className="text-zinc-300">
-                                Est. Fee (8%): RWF{" "}
-                                {state.commission.toLocaleString()}
-                              </p>
-                              <p className="text-zinc-500 text-[10px]">
-                                Locks upon DELIVERY
-                              </p>
-                            </div>
+                            <span className="text-zinc-500">
+                              Pending payment
+                            </span>
                           )}
                         </td>
 
-                        {/* Row Actions */}
                         <td className="p-4 text-right">
-                          <div className="inline-flex items-center gap-2">
+                          <div className="inline-flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => setSelectedOrder(order)}
-                              className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl transition cursor-pointer"
-                              title="Inspect Order"
+                              className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition cursor-pointer"
+                              title="View Order Details"
                             >
                               <Eye size={15} />
                             </button>
@@ -1108,11 +1108,10 @@ const resolveItemVendorDisplay = (
                               type="button"
                               disabled={deletingOrderId === order.id}
                               onClick={() => void handleDeleteOrder(order.id)}
-                              className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition cursor-pointer disabled:opacity-50"
+                              title="Delete / Cancel Order"
                             >
-                              {deletingOrderId === order.id
-                                ? "Removing..."
-                                : "Remove"}
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         </td>
@@ -1124,38 +1123,51 @@ const resolveItemVendorDisplay = (
             </div>
 
             {/* Pagination Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 border-t border-zinc-800 bg-zinc-900/60 text-xs text-zinc-400">
-              <div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-zinc-800 bg-zinc-900/40 text-xs">
+              <div className="text-zinc-400">
                 Showing{" "}
-                <strong className="text-zinc-200">{startItemNumber}</strong> to{" "}
-                <strong className="text-zinc-200">{endItemNumber}</strong> of{" "}
-                <strong className="text-zinc-200">{totalItems}</strong> orders
+                <span className="font-bold text-zinc-200">
+                  {startItemNumber}
+                </span>
+                –
+                <span className="font-bold text-zinc-200">
+                  {endItemNumber}
+                </span>{" "}
+                of{" "}
+                <span className="font-bold text-zinc-200">{totalItems}</span>{" "}
+                orders
               </div>
 
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   disabled={safeCurrentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="p-2 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 cursor-pointer"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.max(1, p - 1))
+                  }
+                  className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 cursor-pointer"
+                  aria-label="Previous page"
                 >
-                  <ChevronLeft size={14} />
+                  <ChevronLeft size={15} />
                 </button>
 
                 {pageNumbers.map((page, idx) =>
                   page === "ellipsis" ? (
-                    <span key={`e-${idx}`} className="px-2 text-zinc-500">
-                      ...
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="px-2 text-zinc-500"
+                    >
+                      …
                     </span>
                   ) : (
                     <button
                       type="button"
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`min-w-8 h-8 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                         safeCurrentPage === page
                           ? "bg-emerald-600 text-white"
-                          : "bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                          : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
                       }`}
                     >
                       {page}
@@ -1169,9 +1181,10 @@ const resolveItemVendorDisplay = (
                   onClick={() =>
                     setCurrentPage((p) => Math.min(totalPages, p + 1))
                   }
-                  className="p-2 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 cursor-pointer"
+                  className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 cursor-pointer"
+                  aria-label="Next page"
                 >
-                  <ChevronRight size={14} />
+                  <ChevronRight size={15} />
                 </button>
               </div>
             </div>
@@ -1179,192 +1192,133 @@ const resolveItemVendorDisplay = (
         )}
       </div>
 
-{/* Order Detail Drawer / Modal */}
+      {/* Order Details Modal */}
       {selectedOrder && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="order-detail-modal-title"
-          onClick={() => setSelectedOrder(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setSelectedOrder(null);
-          }}
-          tabIndex={-1}
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-900 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl"
-          >
-            <div className="flex items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
               <div>
-                <h3
-                  id="order-detail-modal-title"
-                  className="text-lg font-extrabold text-zinc-100"
-                >
-                  Order {getOrderCode(selectedOrder)}
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Payment Method:{" "}
-                  <strong className="text-zinc-200">
-                    {getPaymentMethodLabel(
-                      (selectedOrder as { paymentMethod?: string })
-                        .paymentMethod,
-                    )}
-                  </strong>{" "}
-                  · Total:{" "}
-                  <strong className="text-emerald-400">
-                    {formatRwf(Number(selectedOrder.totalAmount || 0))}
-                  </strong>
-                </p>
+                <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400">
+                  Order Inspection
+                </span>
+                <h2 className="text-xl font-extrabold text-white">
+                  {getOrderCode(selectedOrder)}
+                </h2>
               </div>
-
               <button
                 type="button"
-                aria-label="Close order details"
                 onClick={() => setSelectedOrder(null)}
-                className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors cursor-pointer shrink-0"
+                className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-4 items-center justify-between bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4">
-              <div className="space-y-1.5 min-w-45">
-                <label
-                  htmlFor="fulfillment-status-select"
-                  className="block text-xs font-bold uppercase tracking-wider text-zinc-400"
-                >
-                  Fulfillment Status
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    id="fulfillment-status-select"
-                    disabled={updatingId === selectedOrder.id}
-                    value={selectedOrder.status}
-                    onChange={(e) =>
-                      void handleStatusChange(selectedOrder, e.target.value)
-                    }
-                    className="w-full bg-zinc-900 border border-zinc-700 focus:border-zinc-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-zinc-100 disabled:opacity-50 cursor-pointer"
-                  >
-                    {STATUS_OPTIONS.filter((s) => s !== "ALL").map((st) => (
-                      <option key={st} value={st}>
-                        {st}
-                      </option>
-                    ))}
-                  </select>
-                  {updatingId === selectedOrder.id && (
-                    <span className="text-[11px] text-zinc-400">
-                      Saving…
-                    </span>
-                  )}
+            <div className="grid sm:grid-cols-2 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-800 space-y-1">
+                <div className="text-zinc-500 uppercase text-[10px]">
+                  Customer
+                </div>
+                <div className="text-zinc-100 font-bold">
+                  {selectedOrder.user?.name || "Guest Checkout"}
+                </div>
+                <div className="text-zinc-400">
+                  {selectedOrder.email || selectedOrder.user?.email || "N/A"}
+                </div>
+                <div className="text-zinc-400">
+                  {selectedOrder.phoneNumber ||
+                    selectedOrder.user?.phone ||
+                    "N/A"}
                 </div>
               </div>
 
-              <div className="space-y-1.5 min-w-45">
-                <label
-                  htmlFor="payment-status-select"
-                  className="block text-xs font-bold uppercase tracking-wider text-zinc-400"
-                >
-                  Payment Status
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    id="payment-status-select"
-                    disabled={updatingPaymentId === selectedOrder.id}
-                    value={selectedOrder.paymentStatus}
-                    onChange={(e) =>
-                      void handlePaymentStatusChange(
-                        selectedOrder,
-                        e.target.value,
-                      )
-                    }
-                    className="w-full bg-zinc-900 border border-zinc-700 focus:border-zinc-500 focus:outline-none rounded-xl px-3 py-1.5 text-xs text-zinc-100 disabled:opacity-50 cursor-pointer"
-                  >
-                    {PAYMENT_STATUS_OPTIONS.map((ps) => (
-                      <option key={ps} value={ps}>
-                        {ps}
-                      </option>
-                    ))}
-                  </select>
-                  {updatingPaymentId === selectedOrder.id && (
-                    <span className="text-[11px] text-zinc-400">
-                      Saving…
-                    </span>
-                  )}
+              <div className="p-4 rounded-2xl bg-zinc-950/60 border border-zinc-800 space-y-1">
+                <div className="text-zinc-500 uppercase text-[10px]">
+                  Settlement &amp; Channel
+                </div>
+                <div className="text-zinc-100 font-bold">
+                  {getPaymentMethodLabel((selectedOrder as any).paymentMethod)}
+                </div>
+                <div className="text-zinc-400">
+                  Payment: {selectedOrder.paymentStatus || "INITIALIZED"}
+                </div>
+                <div className="text-zinc-400">
+                  Fulfillment: {selectedOrder.status}
                 </div>
               </div>
             </div>
 
             <div className="space-y-3">
-  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-    Vendor &amp; Item Breakdown
-  </h4>
-
-  {buildVendorBreakdown(selectedOrder).length === 0 ? (
-    <div className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 text-xs text-zinc-400">
-      No items found for this order.
-    </div>
-  ) : (
-    buildVendorBreakdown(selectedOrder).map((group) => (
-      <div
-        key={group.vendorName}
-        className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/40 space-y-2.5"
-      >
-        <div className="flex items-start justify-between gap-3 text-xs font-bold text-zinc-200">
-          <div>
-            <span>{group.vendorName}</span>
-            {group.vendorName && (
-              <p className="text-[11px] font-normal text-zinc-400 mt-0.5">
-                {group.vendorName}
-              </p>
-            )}
-          </div>
-          <span className="text-emerald-400 shrink-0">
-            {formatRwf(group.revenue)}
-          </span>
-        </div>
-
-        <div className="divide-y divide-zinc-800/60 text-xs text-zinc-400">
-          {group.items.map((item: any) => {
-            const itemVendor = resolveItemVendorDisplay(item, selectedOrder);
-            const lineAmount =
-              Number(item.priceAtPurchase || 0) * Number(item.quantity || 0);
-
-            return (
-              <div
-                key={item.id}
-                className="py-2 flex items-center justify-between gap-4"
-              >
-                <div className="min-w-0 space-y-0.5">
-                  <div className="text-zinc-200 font-medium truncate">
-                    {item.product?.title || item.title || "Product"} ×{" "}
-                    {item.quantity}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-                    <Store size={11} className="text-emerald-400 shrink-0" />
-                    <span className="truncate font-medium text-zinc-300">
-                      {itemVendor.name}
-                    </span>
-                    {itemVendor.meta && (
-                      <span className="text-zinc-500 truncate">
-                        ({itemVendor.meta})
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <span className="shrink-0 font-semibold text-zinc-200">
-                  {formatRwf(lineAmount)}
-                </span>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+                <Send size={13} className="text-emerald-400" /> Items &amp;
+                Vendor Attribution
+              </h3>
+              <div className="divide-y divide-zinc-800 rounded-2xl bg-zinc-950/60 border border-zinc-800">
+                {(selectedOrder.items || []).map((item, idx) => {
+                  const vendorInfo = resolveItemVendorDisplay(
+                    item,
+                    selectedOrder,
+                  );
+                  const lineTotal =
+                    Number(item.priceAtPurchase || 0) *
+                    Number(item.quantity || 1);
+                  return (
+                    <div
+                      key={item.id || idx}
+                      className="p-3.5 flex items-center justify-between gap-4 text-xs font-mono"
+                    >
+                      <div>
+                        <div className="font-bold text-zinc-100">
+                          {item.product?.title || `Item #${idx + 1}`}
+                        </div>
+                        <div className="text-zinc-400 text-[11px]">
+                          Store: {vendorInfo.name}
+                          {vendorInfo.meta ? ` (${vendorInfo.meta})` : ""}
+                        </div>
+                        <div className="text-zinc-500 text-[11px]">
+                          Qty: {item.quantity || 1} ×{" "}
+                          {formatRwf(Number(item.priceAtPurchase || 0))}
+                        </div>
+                      </div>
+                      <div className="font-bold text-emerald-400">
+                        {formatRwf(lineTotal)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      </div>
-    ))
-  )}
-</div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                Vendor Breakdown
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-3 text-xs font-mono">
+                {buildVendorBreakdown(selectedOrder).map((v) => (
+                  <div
+                    key={v.vendorName}
+                    className="p-3 rounded-2xl bg-zinc-950/60 border border-zinc-800 flex items-center justify-between"
+                  >
+                    <span className="text-zinc-200 font-semibold">
+                      {v.vendorName}
+                    </span>
+                    <span className="text-emerald-400 font-bold">
+                      {formatRwf(v.revenue)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

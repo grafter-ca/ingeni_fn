@@ -36,6 +36,8 @@ export interface AdminOverviewProps {
   vendorCount: number;
   activeSessionsCount?: number;
   isLoading: boolean;
+  isAuthLoading?: boolean;
+  isAuthorized?: boolean;
   connectionStatus: string;
   requestLatencyMs: number | null;
   liveMetrics: LiveRegistryMetric[];
@@ -48,6 +50,8 @@ const AdminOverview = ({
   vendorCount,
   activeSessionsCount = 0,
   isLoading,
+  isAuthLoading = false,
+  isAuthorized = true,
   connectionStatus,
   requestLatencyMs,
   liveMetrics = [],
@@ -55,10 +59,11 @@ const AdminOverview = ({
   onRefresh,
 }: AdminOverviewProps) => {
   const [observedTraffic, setObservedTraffic] = useState<SiteTrafficPoint[]>([]);
+  const canDisplayTelemetry = !isAuthLoading && isAuthorized;
 
-  // Record real observed telemetry snapshots when live data updates
+  // Record real observed telemetry snapshots when authorized live data updates
   useEffect(() => {
-    if (isLoading) return;
+    if (!canDisplayTelemetry || isLoading || trafficSeries !== undefined) return;
 
     const nowLabel = new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -67,20 +72,40 @@ const AdminOverview = ({
     });
 
     setObservedTraffic((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.activeSessions === activeSessionsCount && prev.length > 0) {
+        return prev;
+      }
+
       const nextPoint: SiteTrafficPoint = {
         time: nowLabel,
         requests: prev.length + 1,
         activeSessions: activeSessionsCount,
       };
-      const updated = [...prev, nextPoint];
-      return updated.slice(-20);
+      return [...prev, nextPoint].slice(-20);
     });
-  }, [isLoading, totalUsers, vendorCount, activeSessionsCount, requestLatencyMs]);
+  }, [
+    canDisplayTelemetry,
+    isLoading,
+    trafficSeries,
+    totalUsers,
+    vendorCount,
+    activeSessionsCount,
+    requestLatencyMs,
+  ]);
 
   const chartData =
-    trafficSeries && trafficSeries.length > 0
-      ? trafficSeries
-      : observedTraffic;
+    trafficSeries !== undefined ? trafficSeries : observedTraffic;
+
+  if (!canDisplayTelemetry) {
+    return (
+      <div className="py-24 text-center text-sm font-mono uppercase tracking-widest text-white/60">
+        {isAuthLoading
+          ? "Verifying admin session..."
+          : "Admin authorization required to view live telemetry."}
+      </div>
+    );
+  }
 
   if (isLoading && chartData.length === 0) {
     return (
@@ -105,7 +130,8 @@ const AdminOverview = ({
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#0a0a0a] border border-white/10 text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition cursor-pointer"
+          disabled={isLoading}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#0a0a0a] border border-white/10 text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/5 disabled:opacity-50 transition cursor-pointer"
         >
           <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
           Refresh Live Metrics
@@ -269,21 +295,25 @@ const HealthBar = ({
   total: number;
   percent: number;
   color: string;
-}) => (
-  <div className="space-y-2">
-    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-gray-400">
-      <span>{label}</span>
-      <span>
-        {count.toLocaleString()} / {total.toLocaleString()} ({percent}%)
-      </span>
+}) => {
+  const clampedPercent = Math.min(100, Math.max(0, percent));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-gray-400">
+        <span>{label}</span>
+        <span>
+          {count.toLocaleString()} / {total.toLocaleString()} ({clampedPercent}%)
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${color} transition-all duration-700`}
+          style={{ width: `${clampedPercent}%` }}
+        />
+      </div>
     </div>
-    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-      <div
-        className={`h-full ${color} transition-all duration-700`}
-        style={{ width: `${percent}%` }}
-      />
-    </div>
-  </div>
-);
+  );
+};
 
 export default AdminOverview;
