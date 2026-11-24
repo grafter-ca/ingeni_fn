@@ -2,10 +2,12 @@
 
 export type ProductFormData = {
   title: string;
+  slug?: string;
   stock: number | string;
   price: number | string;
   description: string;
-  location: string;
+  location?: string;
+  isActive?: boolean;
   images: string[];     // Existing image URLs
   imageFiles: File[];   // New files from input
   categoryId: string;
@@ -16,18 +18,18 @@ export type ApiProduct = {
   id: string;
   origin?: "local" | "fake";
   title: string;
-  stock: number;
-  isActive?: boolean;
+  slug: string;
   price: number | string;
-  location?: string | null;
   description: string;
+  location?: string | null;
+  stock: number;
+  isActive: boolean;
   images: string[];
   imageFiles?: File[];
   category: ApiCategory;
   vendor?: ApiVendor;
-  slug?: string;
   categoryId: string;
-  vendorId?: string;
+  vendorId: string;
   rating?: number;
   averageRating?: number;
   reviewCount?: number;
