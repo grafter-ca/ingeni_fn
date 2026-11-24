@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { VendorManagement } from "../../../features/admin/vendors/VendorManagement";
 import { useVendorStore } from "../../../store/vendorStore";
 import {
@@ -8,7 +8,10 @@ import {
   Package,
   ShieldCheck,
   RefreshCw,
+  Smartphone,
 } from "lucide-react";
+
+const PLATFORM_COMMISSION_RATE = 0.08;
 
 const AdminVendorPage = () => {
   const vendors = useVendorStore((state) => state.vendors);
@@ -36,6 +39,17 @@ const AdminVendorPage = () => {
   const safeVendors = Array.isArray(vendors) ? vendors : [];
   const safePending = Array.isArray(pendingRequests) ? pendingRequests : [];
   const activeVendorsCount = safeVendors.filter((v) => v.isActive).length;
+
+  const momoConfiguredCount = useMemo(
+    () =>
+      safeVendors.filter((v: any) =>
+        Boolean(String(v?.momoCode || v?.momo_code || v?.phone || "").trim()),
+      ).length,
+    [safeVendors],
+  );
+
+  const grossRevenue = stats?.revenue ? Number(stats.revenue) : 0;
+  const estimatedCommission = grossRevenue * PLATFORM_COMMISSION_RATE;
 
   return (
     <div className="min-h-screen bg-[#050505] p-6 lg:p-8 text-white max-w-360 mx-auto space-y-8">
@@ -99,6 +113,15 @@ const AdminVendorPage = () => {
 
               <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 flex items-center gap-2 font-medium">
+                  <Smartphone size={14} className="text-emerald-400" /> MoMo Payout Ready
+                </span>
+                <span className="font-bold text-emerald-400 text-sm font-mono">
+                  {momoConfiguredCount} / {safeVendors.length}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
+                <span className="text-gray-400 flex items-center gap-2 font-medium">
                   <UserCheck size={14} className="text-amber-400" /> Pending Requests
                 </span>
                 <span className="font-bold text-amber-400 text-sm">
@@ -109,7 +132,17 @@ const AdminVendorPage = () => {
               <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
                 <span className="text-gray-400 font-medium">Ecosystem Revenue</span>
                 <span className="font-bold text-white text-sm">
-                  {stats?.revenue ? Number(stats.revenue).toLocaleString() : "0"} RWF
+                  {grossRevenue.toLocaleString()} RWF
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center bg-white/2 hover:bg-white/4 transition-colors p-3.5 rounded-2xl border border-white/5">
+                <span className="text-gray-400 font-medium">Est. Commission (8%)</span>
+                <span className="font-bold text-blue-400 text-sm font-mono">
+                  {estimatedCommission.toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}{" "}
+                  RWF
                 </span>
               </div>
 

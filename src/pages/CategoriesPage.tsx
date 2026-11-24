@@ -20,14 +20,22 @@ const CategoriesPage = () => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Filter categories based on search input
+  // Filter categories based on search input (name, slug, parent, description)
   const filteredCategories = useMemo(() => {
-    return categories.filter(
-      (cat) =>
-        cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (cat.description &&
-          cat.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return categories;
+
+    return categories.filter((cat: any) => {
+      const nameMatch = cat.name?.toLowerCase().includes(q);
+      const slugMatch = cat.slug?.toLowerCase().includes(q);
+      const parentMatch = cat.parent?.name?.toLowerCase().includes(q);
+      const descMatch = cat.description?.toLowerCase().includes(q);
+      const childMatch = Array.isArray(cat.children)
+        ? cat.children.some((child: any) => child.name?.toLowerCase().includes(q))
+        : false;
+
+      return Boolean(nameMatch || slugMatch || parentMatch || descMatch || childMatch);
+    });
   }, [categories, searchQuery]);
 
   // Reset to page 1 whenever the search filter changes
@@ -80,7 +88,7 @@ const CategoriesPage = () => {
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Search categories..."
+                placeholder="Search categories or subcategories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-emerald-500 transition-all shadow-sm"
@@ -125,17 +133,28 @@ const CategoriesPage = () => {
               </button>
             </div>
           ) : (
-            paginatedCategories.map((cat) => (
-              <CategoryCard
-                key={cat.id}
-                id={cat.id}
-                name={cat.name}
-                description={cat.description}
-                imageUrl={cat.image || cat.imageUrl}
-                itemCount={cat.productsCount}
-                onClick={() => navigate(`/products?categoryId=${cat.id}`)}
-              />
-            ))
+            paginatedCategories.map((cat: any) => {
+              const itemCount =
+                cat.productsCount ?? cat._count?.products ?? undefined;
+              const subcategories = Array.isArray(cat.children)
+                ? cat.children.map((child: any) => child.name).filter(Boolean)
+                : [];
+
+              return (
+                <CategoryCard
+                  key={cat.id}
+                  id={cat.id}
+                  name={cat.name}
+                  slug={cat.slug}
+                  parentName={cat.parent?.name ?? null}
+                  subcategories={subcategories}
+                  description={cat.description}
+                  imageUrl={cat.image || cat.imageUrl}
+                  itemCount={itemCount}
+                  onClick={() => navigate(`/products?categoryId=${cat.id}`)}
+                />
+              );
+            })
           )}
         </motion.div>
 

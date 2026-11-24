@@ -48,6 +48,7 @@ export interface OnboardingRequest {
   businessDescription?: string;
   description?: string;
   address?: string;
+  momoCode?: string;
   phone?: string;
   user?: {
     id?: string;
@@ -56,6 +57,20 @@ export interface OnboardingRequest {
   };
   submittedAt?: string;
 }
+
+export type VendorFormData = Omit<ApiVendor, "id" | "createdAt" | "_count"> & {
+  momoCode?: string | null;
+};
+
+const EMPTY_VENDOR_FORM: VendorFormData = {
+  phone: "",
+  momoCode: "",
+  storeName: "",
+  description: "",
+  address: "",
+  logoUrl: "",
+  isActive: true,
+};
 
 interface VendorState {
   vendors: ApiVendor[];
@@ -80,11 +95,12 @@ interface VendorState {
   statusFilter: "all" | "active" | "inactive";
 
   isEditing: ApiVendor | null;
-  formData: Omit<ApiVendor, "id" | "createdAt" | "_count">;
+  formData: VendorFormData;
   socket: Socket | null;
 
   // Actions
   fetchVendors: (params?: any) => Promise<void>;
+  fetchVendorDirectory: (params?: any) => Promise<void>;
   fetchVendorById: (id: string) => Promise<void>;
   fetchVendorDetails: (id: string) => Promise<void>;
   fetchPendingRequests: () => Promise<void>;
@@ -92,32 +108,61 @@ interface VendorState {
   fetchStorefrontMetrics: () => Promise<void>;
   fetchVendorSettings: () => Promise<void>;
   updateVendorSettings: (payload: any) => Promise<void>;
-  submitAdminRequest: (payload: { type: string; amount?: string; message: string }) => Promise<void>;
+  submitAdminRequest: (payload: {
+    type: string;
+    amount?: string;
+    message: string;
+  }) => Promise<void>;
   fetchVendorFinancials: (vendorId: string) => Promise<void>;
-  requestCashout: (vendorId: string, amount: string, phone: string) => Promise<void>;
+  requestCashout: (
+    vendorId: string,
+    amount: string,
+    phone: string,
+  ) => Promise<void>;
 
   setSearchQuery: (query: string) => void;
   setStatusFilter: (status: "all" | "active" | "inactive") => void;
   applyFilters: () => void;
 
-  updateFormData: (data: Partial<VendorState["formData"]>) => void;
+  updateFormData: (data: Partial<VendorFormData>) => void;
   setEditingVendor: (vendor: ApiVendor | null) => void;
 
   initSocketListeners: () => void;
   disconnectSocket: () => void;
   setSelectedVendor: (vendor: ApiVendor | null) => void;
-  addVendor: () => Promise<void>;
-  updateVendor: (id: string) => Promise<void>;
+  addVendor: (overrideData?: Partial<VendorFormData>) => Promise<void>;
+  updateVendor: (
+    id: string,
+    overrideData?: Partial<VendorFormData>,
+  ) => Promise<void>;
   removeVendor: (id: string) => Promise<void>;
   toggleVendorStatus: (id: string, currentStatus: boolean) => Promise<void>;
-  approveVendorRequest: (requestData: { userId: string; storeName: string; description: string; address: string; phone: string }) => Promise<void>;
+  approveVendorRequest: (requestData: {
+    userId: string;
+    storeName: string;
+    description: string;
+    address: string;
+    phone: string;
+    momoCode?: string;
+  }) => Promise<void>;
   rejectVendorRequest: (requestId: string) => Promise<void>;
-  updateOrderStatus: (orderId: string, nextStatus: Order["status"] | string) => Promise<void>;
+  updateOrderStatus: (
+    orderId: string,
+    nextStatus: Order["status"] | string,
+  ) => Promise<void>;
   requestOnboarding: (description: string) => Promise<void>;
   clearFilters: () => void;
 }
 
 let listenersInitialized = false;
+
+const isForbidden = (err: any) =>
+  (err?.response?.status ?? err?.status) === 403;
+
+const normalizeMomo = (val?: string | null): string | null => {
+  const trimmed = (val ?? "").trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
 
 export const useVendorStore = create<VendorState>((set, get) => ({
   vendors: [],
@@ -141,14 +186,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   statusFilter: "all",
 
   isEditing: null,
-  formData: {
-    phone: "",
-    storeName: "",
-    description: "",
-    address: "",
-    logoUrl: "",
-    isActive: true,
-  },
+  formData: { ...EMPTY_VENDOR_FORM },
   socket: socket,
 
   fetchVendors: async (params) => {
@@ -158,7 +196,35 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       set({ vendors: data, isLoading: false });
       get().applyFilters();
     } catch (err: any) {
-      set({ error: err.message || "Failed to load vendors catalog", isLoading: false });
+      if (isForbidden(err)) {
+        set({ vendors: [], filteredVendors: [], isLoading: false, error: null });
+        return;
+      }
+      set({
+        error: err.message || "Failed to load vendors catalog",
+        isLoading: false,
+      });
+    }
+  },
+
+  fetchVendorDirectory: async (params) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await vendorService.getPublicDirectory(params);
+      set({
+        vendors: (data || []) as unknown as ApiVendor[],
+        isLoading: false,
+      });
+      get().applyFilters();
+    } catch (err: any) {
+      if (isForbidden(err)) {
+        set({ vendors: [], filteredVendors: [], isLoading: false, error: null });
+        return;
+      }
+      set({
+        error: err.message || "Failed to load vendor directory",
+        isLoading: false,
+      });
     }
   },
 
@@ -168,7 +234,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       const vendor = await vendorService.getVendorById(id);
       set({ selectedVendor: vendor, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message || "Failed to load vendor details", isLoading: false });
+      set({
+        error: err.message || "Failed to load vendor details",
+        isLoading: false,
+      });
     }
   },
 
@@ -181,7 +250,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       ]);
       set({ selectedVendor: profile, activeMetrics: metrics, isLoading: false });
     } catch (err: any) {
-      set({ error: "Failed to pull detailed profile insights", isLoading: false });
+      set({
+        error: "Failed to pull detailed profile insights",
+        isLoading: false,
+      });
     }
   },
 
@@ -207,16 +279,22 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       const mappedStats: VendorStats = metricsData || {
         revenue: ordersData.reduce(
           (acc: number, curr: any) =>
-            curr.status === "DELIVERED" ? acc + Number(curr.totalAmount || 0) : acc,
-          0
+            curr.status === "DELIVERED"
+              ? acc + Number(curr.totalAmount || 0)
+              : acc,
+          0,
         ),
-        activeOrders: ordersData.filter((o: any) => o.status === "PENDING").length,
+        activeOrders: ordersData.filter((o: any) => o.status === "PENDING")
+          .length,
         productCount: get().vendors.length,
       };
 
       set({ orders: ordersData, stats: mappedStats, isLoading: false });
     } catch (err: any) {
-      set({ error: "Failed to pull transaction metrics telemetry", isLoading: false });
+      set({
+        error: "Failed to pull transaction metrics telemetry",
+        isLoading: false,
+      });
     }
   },
 
@@ -229,7 +307,9 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         stats: {
           revenue: Number(metricsData?.revenue || 0),
           activeOrders: Number(metricsData?.activeOrders || 0),
-          productCount: Number(metricsData?.productCount || get().vendors.length || 0),
+          productCount: Number(
+            metricsData?.productCount || get().vendors.length || 0,
+          ),
         },
       });
     } catch (error) {
@@ -243,7 +323,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       const data = await vendorService.getVendorSettings();
       set({ vendorSettings: data, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message || "Failed to load store configurations", isLoading: false });
+      set({
+        error: err.message || "Failed to load store configurations",
+        isLoading: false,
+      });
     }
   },
 
@@ -253,17 +336,16 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       const updated = await vendorService.updateVendorSettings(payload);
       set({ vendorSettings: updated, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message || "Failed to update configurations", isLoading: false });
+      set({
+        error: err.message || "Failed to update configurations",
+        isLoading: false,
+      });
       throw err;
     }
   },
 
   submitAdminRequest: async (payload) => {
-    try {
-      await vendorService.submitAdminRequest(payload);
-    } catch (err: any) {
-      throw err;
-    }
+    await vendorService.submitAdminRequest(payload);
   },
 
   fetchVendorFinancials: async (vendorId: string) => {
@@ -278,7 +360,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       });
     } catch (err: any) {
       console.error("Failed to fetch vendor financials:", err);
-      set({ error: err.message || "Failed to load financial records", isLoading: false });
+      set({
+        error: err.message || "Failed to load financial records",
+        isLoading: false,
+      });
     }
   },
 
@@ -298,7 +383,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         isLoading: false,
       });
     } catch (err: any) {
-      set({ isLoading: false, error: err.message || "Failed to request cashout" });
+      set({
+        isLoading: false,
+        error: err.message || "Failed to request cashout",
+      });
       throw err;
     }
   },
@@ -318,10 +406,23 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     let updatedList = [...vendors];
 
     if (searchQuery.trim()) {
-      const targetQuery = searchQuery.toLowerCase().trim();
-      updatedList = updatedList.filter(
-        (v) => v.storeName.toLowerCase().includes(targetQuery) || ""
-      );
+      const q = searchQuery.toLowerCase().trim();
+      updatedList = updatedList.filter((v: any) => {
+        const storeName = String(v?.storeName || "").toLowerCase();
+        const ownerName = String(
+          v?.name || v?.ownerName || v?.user?.name || "",
+        ).toLowerCase();
+        const email = String(
+          v?.email || v?.supportEmail || v?.user?.email || "",
+        ).toLowerCase();
+        const momo = String(v?.momoCode || v?.momo_code || "").toLowerCase();
+        return (
+          storeName.includes(q) ||
+          ownerName.includes(q) ||
+          email.includes(q) ||
+          momo.includes(q)
+        );
+      });
     }
 
     if (statusFilter !== "all") {
@@ -335,30 +436,38 @@ export const useVendorStore = create<VendorState>((set, get) => ({
   updateFormData: (data) =>
     set((state) => ({ formData: { ...state.formData, ...data } })),
 
-  setEditingVendor: (vendor) => {
-    if (vendor) {
+  setEditingVendor: (vendor: any) => {
+    if (
+      vendor &&
+      (vendor.id ||
+        vendor.storeName ||
+        vendor.phone ||
+        vendor.address ||
+        vendor.description ||
+        vendor.momoCode ||
+        vendor.momo_code)
+    ) {
       set({
         isEditing: vendor,
         formData: {
           phone: vendor.phone || "",
+          momoCode: vendor.momoCode || vendor.momo_code || "",
           description: vendor.description || "",
           address: vendor.address || "",
-          storeName: vendor.storeName,
+          storeName: vendor.storeName || "",
           logoUrl: vendor.logoUrl || "",
-          isActive: vendor.isActive,
+          isActive: vendor.isActive ?? true,
         },
+      });
+    } else if (vendor) {
+      set({
+        isEditing: vendor,
+        formData: { ...EMPTY_VENDOR_FORM },
       });
     } else {
       set({
         isEditing: null,
-        formData: {
-          phone: "",
-          storeName: "",
-          description: "",
-          address: "",
-          logoUrl: "",
-          isActive: true,
-        },
+        formData: { ...EMPTY_VENDOR_FORM },
       });
     }
   },
@@ -370,7 +479,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     listenersInitialized = true;
 
     socket.on("connect", () => {
-      console.log("⚡ Vendor Store connected to real-time socket server:", socket.id);
+      console.log(
+        "⚡ Vendor Store connected to real-time socket server:",
+        socket.id,
+      );
     });
 
     socket.on("disconnect", (reason) => {
@@ -389,12 +501,13 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     socket.on("vendorUpdated", (updatedVendor: ApiVendor) => {
       set((state) => {
         const vendors = state.vendors.map((v) =>
-          String(v.id) === String(updatedVendor.id) ? updatedVendor : v
+          String(v.id) === String(updatedVendor.id) ? updatedVendor : v,
         );
         return {
           vendors,
           selectedVendor:
-            state.selectedVendor && String(state.selectedVendor.id) === String(updatedVendor.id)
+            state.selectedVendor &&
+            String(state.selectedVendor.id) === String(updatedVendor.id)
               ? updatedVendor
               : state.selectedVendor,
         };
@@ -404,7 +517,9 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
     socket.on("vendorDeleted", ({ id }: { id: string }) => {
       set((state) => {
-        const vendors = state.vendors.filter((v) => String(v.id) !== String(id));
+        const vendors = state.vendors.filter(
+          (v) => String(v.id) !== String(id),
+        );
         return {
           vendors,
           selectedVendor:
@@ -434,53 +549,75 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     socket.off("vendorCreated");
   },
 
-  addVendor: async () => {
-    const { formData, fetchVendors } = get();
-    if (!formData.storeName?.trim()) {
-      throw new Error("Vendor Store name is strictly required parameters.");
+  addVendor: async (overrideData) => {
+    const merged = { ...get().formData, ...overrideData };
+    const cleanStoreName = merged.storeName?.trim();
+    if (!cleanStoreName) {
+      const msg = "Vendor store name is required.";
+      set({ error: msg });
+      throw new Error(msg);
     }
 
-    set({ isLoading: true });
+    const payload: VendorFormData = {
+      ...merged,
+      storeName: cleanStoreName,
+      phone: (merged.phone ?? "").trim(),
+      momoCode: normalizeMomo(merged.momoCode),
+      address: (merged.address ?? "").trim(),
+      description: (merged.description ?? "").trim(),
+      isActive: merged.isActive ?? true,
+    };
+
+    set({ isLoading: true, error: null });
     try {
-      await vendorService.createVendor(formData);
+      await vendorService.createVendor(payload as any);
       set({
         isEditing: null,
-        formData: {
-          phone: "",
-          storeName: "",
-          description: "",
-          address: "",
-          logoUrl: "",
-          isActive: true,
-        },
+        formData: { ...EMPTY_VENDOR_FORM },
+        isLoading: false,
       });
-      await fetchVendors();
+      await get().fetchVendors();
     } catch (err: any) {
+      set({
+        error: err?.message || "Failed to create vendor",
+        isLoading: false,
+      });
       throw err;
-    } finally {
-      set({ isLoading: false });
     }
   },
 
-  updateVendor: async (id) => {
-    const { formData, fetchVendors } = get();
-    set({ isLoading: true });
+  updateVendor: async (id, overrideData) => {
+    const merged = { ...get().formData, ...overrideData };
+    const payload: VendorFormData = {
+      ...merged,
+      storeName: (merged.storeName ?? "").trim(),
+      phone: (merged.phone ?? "").trim(),
+      momoCode: normalizeMomo(merged.momoCode),
+      address: (merged.address ?? "").trim(),
+      description: (merged.description ?? "").trim(),
+      isActive: merged.isActive ?? true,
+    };
+
+    set({ isLoading: true, error: null });
     try {
-      await vendorService.updateVendor(id, formData);
+      await vendorService.updateVendor(id, payload as any);
       set({
         isEditing: null,
-        formData: { storeName: "", phone: "", address: "", description: "", isActive: true },
+        formData: { ...EMPTY_VENDOR_FORM },
+        isLoading: false,
       });
-      await fetchVendors();
+      await get().fetchVendors();
     } catch (err: any) {
+      set({
+        error: err?.message || "Failed to update vendor",
+        isLoading: false,
+      });
       throw err;
-    } finally {
-      set({ isLoading: false });
     }
   },
 
   removeVendor: async (id) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       await vendorService.deleteVendor(id);
       set((state) => {
@@ -495,7 +632,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         };
       });
     } catch (err: any) {
-      set({ error: "Could not unboard profile record from data tables", isLoading: false });
+      set({
+        error: "Could not unboard profile record from data tables",
+        isLoading: false,
+      });
       throw err;
     }
   },
@@ -505,25 +645,34 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       await vendorService.toggleVendorStatus(id, currentStatus);
       set((state) => {
         const updated = state.vendors.map((v) =>
-          v.id === id ? { ...v, isActive: !currentStatus } : v
+          v.id === id ? { ...v, isActive: !currentStatus } : v,
         );
         return { vendors: updated };
       });
       get().applyFilters();
     } catch (err: any) {
-      console.error("Failed to alter remote state profile visibility flag context:", err);
+      console.error(
+        "Failed to alter remote state profile visibility flag context:",
+        err,
+      );
     }
   },
 
   approveVendorRequest: async (requestData) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
-      await vendorService.approveVendorRequest(requestData);
+      await vendorService.approveVendorRequest({
+        ...requestData,
+        momoCode: requestData.momoCode?.trim() || undefined,
+      });
       await get().fetchVendors();
       await get().fetchPendingRequests();
       set({ isLoading: false });
     } catch (err: any) {
-      set({ isLoading: false, error: err.message || "Failed to approve request" });
+      set({
+        isLoading: false,
+        error: err.message || "Failed to approve request",
+      });
       throw err;
     }
   },
@@ -532,7 +681,9 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     try {
       await vendorService.rejectVendorRequest(requestId);
       set((state) => ({
-        pendingRequests: state.pendingRequests.filter((r) => r.id !== requestId),
+        pendingRequests: state.pendingRequests.filter(
+          (r) => r.id !== requestId,
+        ),
       }));
     } catch (err) {
       console.error("Failed to reject request", err);
@@ -541,11 +692,14 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
   updateOrderStatus: async (orderId, nextStatus) => {
     try {
-      await vendorService.updateOrderStatus(orderId, nextStatus as ApiOrder["status"]);
+      await vendorService.updateOrderStatus(
+        orderId,
+        nextStatus as ApiOrder["status"],
+      );
 
       set((state) => {
         const updatedOrders = state.orders.map((o) =>
-          o.id === orderId ? { ...o, status: nextStatus as Order["status"] } : o
+          o.id === orderId ? { ...o, status: nextStatus as Order["status"] } : o,
         );
 
         const updatedStats = state.stats
@@ -553,10 +707,13 @@ export const useVendorStore = create<VendorState>((set, get) => ({
               ...state.stats,
               revenue: updatedOrders.reduce(
                 (acc, curr) =>
-                  curr.status === "DELIVERED" ? acc + Number(curr.totalAmount || 0) : acc,
-                0
+                  curr.status === "DELIVERED"
+                    ? acc + Number(curr.totalAmount || 0)
+                    : acc,
+                0,
               ),
-              activeOrders: updatedOrders.filter((o) => o.status === "PENDING").length,
+              activeOrders: updatedOrders.filter((o) => o.status === "PENDING")
+                .length,
             }
           : null;
 
@@ -566,7 +723,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         };
       });
     } catch (err) {
-      console.error("Order adjustment handshake failure inside store module:", err);
+      console.error(
+        "Order adjustment handshake failure inside store module:",
+        err,
+      );
       throw err;
     }
   },

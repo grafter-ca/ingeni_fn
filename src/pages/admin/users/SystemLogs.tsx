@@ -16,6 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import toast from "react-hot-toast";
+import { socket } from "../../../libs/socket";
 
 export interface LiveSystemLog {
   id: string | number;
@@ -33,7 +34,7 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
 
 const resolveApiBase = (rawUrl: string): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== "undefined" &&
       window.location.hostname === "ingeni.onrender.com");
 
@@ -61,6 +62,20 @@ const buildApiUrl = (path: string) => {
   return `${cleanBase}${cleanPath}`;
 };
 
+const normalizeLogEntry = (entry: any, idx: number): LiveSystemLog => ({
+  id: entry?.id ?? `log-${Date.now()}-${idx}`,
+  time:
+    entry?.time ||
+    entry?.timestamp ||
+    entry?.createdAt ||
+    new Date().toISOString(),
+  level: String(entry?.level || entry?.severity || "INFO").toUpperCase(),
+  module: String(entry?.module || entry?.context || "SYSTEM").toUpperCase(),
+  msg: String(entry?.msg || entry?.message || ""),
+  node: entry?.node || entry?.host || "API",
+  payloadBytes: Number(entry?.payloadBytes || entry?.sizeBytes || 0),
+});
+
 const SystemLogs = () => {
   const [logs, setLogs] = useState<LiveSystemLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,17 +101,22 @@ const SystemLogs = () => {
         signal: controller.signal,
       });
 
-      if (!res.ok) {
+      const rawText = await res.text();
+      const looksLikeHtml = rawText.trim().toLowerCase().startsWith("<!doctype");
+
+      if (!res.ok || looksLikeHtml) {
         setLogs([]);
         setStatusNote(
-          res.status === 404
-            ? "Endpoint GET /admin/logs not found on backend (0 persisted log rows yet)."
-            : `Backend returned HTTP ${res.status} from ${targetUrl}`,
+          looksLikeHtml
+            ? `Expected JSON from ${targetUrl}, received HTML instead. Check VITE_API_URL or backend server port.`
+            : res.status === 404
+              ? "Endpoint GET /admin/logs not found on backend (0 persisted log rows yet)."
+              : `Backend returned HTTP ${res.status} from ${targetUrl}`,
         );
         return;
       }
 
-      const payload = await res.json();
+      const payload = rawText ? JSON.parse(rawText) : [];
       const rawList = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.data)
@@ -105,20 +125,8 @@ const SystemLogs = () => {
             ? payload.logs
             : [];
 
-      const normalized: LiveSystemLog[] = rawList.map(
-        (entry: any, idx: number) => ({
-          id: entry.id ?? `log-${idx}`,
-          time:
-            entry.time ||
-            entry.timestamp ||
-            entry.createdAt ||
-            new Date().toISOString(),
-          level: String(entry.level || entry.severity || "INFO").toUpperCase(),
-          module: String(entry.module || entry.context || "SYSTEM").toUpperCase(),
-          msg: String(entry.msg || entry.message || ""),
-          node: entry.node || entry.host || "API",
-          payloadBytes: Number(entry.payloadBytes || entry.sizeBytes || 0),
-        }),
+      const normalized = rawList.map((entry: any, idx: number) =>
+        normalizeLogEntry(entry, idx),
       );
 
       setLogs(normalized);
@@ -145,6 +153,23 @@ const SystemLogs = () => {
       abortRef.current?.abort();
     };
   }, [fetchLiveLogs]);
+
+  useEffect(() => {
+    const handleIncomingLog = (incoming: any) => {
+      if (!incoming || typeof incoming !== "object") return;
+      const entry = normalizeLogEntry(incoming, Math.floor(Math.random() * 10000));
+      setStatusNote("");
+      setLogs((prev) => [entry, ...prev.filter((l) => l.id !== entry.id)].slice(0, 200));
+    };
+
+    socket?.on?.("admin:log-created", handleIncomingLog);
+    socket?.on?.("system:log", handleIncomingLog);
+
+    return () => {
+      socket?.off?.("admin:log-created", handleIncomingLog);
+      socket?.off?.("system:log", handleIncomingLog);
+    };
+  }, []);
 
   const filteredLogs = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();

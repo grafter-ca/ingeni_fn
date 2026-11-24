@@ -56,7 +56,7 @@ const CategoryShowcase = () => {
   };
 
   return (
-    <section className="px-6 py-4 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#05 relative overflow-hidden transition-colors">
+    <section className="px-6 py-4 border-b border-zinc-200 dark:border-white/5 bg-white dark:bg-[#050505] relative overflow-hidden transition-colors">
       {/* Background Glow matching your blue/green/gray theme */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-75 bg-blue-600/3 dark:bg-emerald-600/3 rounded-full blur-[140px] pointer-events-none" />
 
@@ -144,22 +144,33 @@ const CategoryShowcase = () => {
               </div>
             </section>
           ) : (
-            categories.map((cat) => (
-              <div
-                key={cat.id}
-                data-card-item
-                className="min-w-65 sm:min-w-70 max-w-75 snap-start shrink-0"
-              >
-                <CategoryCard
-                  id={cat.id}
-                  name={cat.name}
-                  description={cat.description}
-                  imageUrl={cat.image || cat.imageUrl}
-                  itemCount={cat.productsCount}
-                  onClick={() => navigate(`/products?categoryId=${cat.id}`)}
-                />
-              </div>
-            ))
+            categories.map((cat: any) => {
+              const itemCount =
+                cat.productsCount ?? cat._count?.products ?? undefined;
+              const subcategories = Array.isArray(cat.children)
+                ? cat.children.map((child: any) => child.name).filter(Boolean)
+                : [];
+
+              return (
+                <div
+                  key={cat.id}
+                  data-card-item
+                  className="min-w-65 sm:min-w-70 max-w-75 snap-start shrink-0"
+                >
+                  <CategoryCard
+                    id={cat.id}
+                    name={cat.name}
+                    slug={cat.slug}
+                    parentName={cat.parent?.name ?? null}
+                    subcategories={subcategories}
+                    description={cat.description}
+                    imageUrl={cat.image || cat.imageUrl}
+                    itemCount={itemCount}
+                    onClick={() => navigate(`/products?categoryId=${cat.id}`)}
+                  />
+                </div>
+              );
+            })
           )}
         </section>
       </article>

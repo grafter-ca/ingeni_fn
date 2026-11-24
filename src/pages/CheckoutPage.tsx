@@ -1,9 +1,9 @@
 // src/pages/CheckoutPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useCartStore } from "../store/cartStore";
 import { useOrderStore } from "../store/useOrderStore";
 import { useVendorStore } from "../store/vendorStore";
-import CheckoutForm from "../components/forms/ChechoutForm";
+import { CheckoutForm } from "../components/forms/CheckoutForm";
 import {
   Headset,
   MessageCircle,
@@ -13,6 +13,12 @@ import {
   Smartphone,
   Banknote,
   Wallet,
+  Copy,
+  Check,
+  Truck,
+  PackageCheck,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import type { PaymentMethod } from "../types/api";
@@ -26,11 +32,18 @@ const DEFAULT_PROVIDER_BY_METHOD: Record<PaymentMethod, string> = {
   WORKFORCE_WALLET: "WALLET",
 };
 
+const FREE_SHIPPING_THRESHOLD = 10000;
+const STANDARD_SHIPPING_FEE = 500;
+
+const getItemVendorId = (item: any): string | undefined =>
+  item?.vendorId || item?.product?.vendorId || item?.vendor?.id || undefined;
+
 const CheckoutPage = () => {
   const { items, clearCart, getTotalPrice, getTotalItems } = useCartStore();
-  const { vendors, fetchVendors } = useVendorStore();
+  const { vendors, fetchVendorDirectory } = useVendorStore();
   const { user } = useAuthState();
   const [showPaymentGate, setShowPaymentGate] = useState(false);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const userId = user?.id || null;
 
   const { createOrder, loading, error } = useOrderStore();
@@ -48,14 +61,67 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (vendors.length === 0) {
-      fetchVendors().catch(() => {});
+      fetchVendorDirectory().catch(() => {});
     }
-  }, [vendors.length, fetchVendors]);
+  }, [vendors.length, fetchVendorDirectory]);
+
+  useEffect(() => {
+    if (user && showPaymentGate) {
+      setShowPaymentGate(false);
+    }
+  }, [user, showPaymentGate]);
 
   const supportTeam = {
     phone: "+250786015225",
     email: "team@ingenistore.com",
   };
+
+  // Unique vendors in the current cart using Vendor fields (storeName, phone, momoCode, accountName)
+  const cartVendors = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          items.map((item) => {
+            const resolvedVendorId = getItemVendorId(item);
+            const vendorRecord: any = vendors.find(
+              (v) => v.id === resolvedVendorId,
+            );
+            const productVendor: any = (item as any)?.product?.vendor;
+            const key = resolvedVendorId || item.id;
+            return [
+              key,
+              {
+                id: resolvedVendorId || key,
+                storeName:
+                  vendorRecord?.storeName ||
+                  productVendor?.storeName ||
+                  "Vendor Store",
+                accountName:
+                  vendorRecord?.momoAccountName ||
+                  vendorRecord?.accountName ||
+                  vendorRecord?.ownerName ||
+                  productVendor?.momoAccountName ||
+                  productVendor?.accountName ||
+                  null,
+                phone:
+                  vendorRecord?.phone ||
+                  vendorRecord?.momoNumber ||
+                  productVendor?.phone ||
+                  productVendor?.momoNumber ||
+                  null,
+                momoCode:
+                  vendorRecord?.momoCode ||
+                  vendorRecord?.momo_code ||
+                  productVendor?.momoCode ||
+                  productVendor?.momo_code ||
+                  null,
+              },
+            ];
+          }),
+        ).values(),
+      ),
+    [items, vendors],
+  );
 
   if (items.length === 0) {
     return (
@@ -71,27 +137,45 @@ const CheckoutPage = () => {
     );
   }
 
+  // Check whether any cart item explicitly disables shipping (e.g., digital/pickup-only)
+  const hasShippableItems = items.some(
+    (item: any) =>
+      item.requiresShipping !== false &&
+      item.isDigital !== true &&
+      item.freeShipping !== true,
+  );
+
+  const qualifiesForFreeShipping =
+    !hasShippableItems || total > FREE_SHIPPING_THRESHOLD;
+  const shipping = qualifiesForFreeShipping ? 0 : STANDARD_SHIPPING_FEE;
+  const amountNeededForFreeShipping = Math.max(
+    0,
+    FREE_SHIPPING_THRESHOLD + 1 - total,
+  );
+
   const tax = total * 0.18;
-  const shipping = total > 10000 ? 0 : 500; // Free shipping for orders above 10,000 RWF
   const grandTotal = total + tax + shipping;
 
-  // Unique vendors in the current cart using Prisma Vendor fields (storeName, phone)
-  const cartVendors = Array.from(
-    new Map(
-      items.map((item) => {
-        const vendorRecord = vendors.find((v) => v.id === item.vendorId);
-        const key = item.vendorId || item.id;
-        return [
-          key,
-          {
-            id: item.vendorId || key,
-            storeName: vendorRecord?.storeName || "Vendor Store",
-            phone: vendorRecord?.phone || null,
-          },
-        ];
-      })
-    ).values()
-  );
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
+      setTimeout(() => {
+        setCopiedValue((prev) => (prev === value ? null : prev));
+      }, 2000);
+    } catch {
+      // Clipboard fallback ignored if blocked
+    }
+  };
+
+  const triggerCheckoutSubmit = () => {
+    const formEl = document.getElementById(
+      "checkout-form",
+    ) as HTMLFormElement | null;
+    if (formEl) {
+      formEl.requestSubmit();
+    }
+  };
 
   const handlePlaceOrder = async ({
     shippingAddress,
@@ -99,7 +183,7 @@ const CheckoutPage = () => {
     email,
     paymentMethod,
     provider,
-    paymentProofFile,
+    paymentProofUrl,
   }: {
     shippingAddress: string;
     phoneNumber: string;
@@ -107,60 +191,52 @@ const CheckoutPage = () => {
     paymentMethod: PaymentMethod;
     provider: string;
     paymentProofFile?: File;
+    paymentProofUrl?: string;
   }) => {
-    let paymentProofUrl: string | undefined = undefined;
-    try {
-      const validatedItems = items.map((item) => {
-        const cleanId = item.productId
-          ? item.productId.replace("local-", "").replace("fake-", "")
-          : item.id;
-        if (!cleanId) {
-          throw new Error(`${item.name} is missing productId`);
-        }
-
-        if (!item.vendorId) {
-          throw new Error(
-            `${item.name} is missing vendorId assignment for multi-vendor distribution`
-          );
-        }
-
-        return {
-          productId: cleanId,
-          vendorId: item.vendorId,
-          quantity: item.quantity,
-        };
-      });
-
-      if (paymentProofFile) {
-        paymentProofUrl = URL.createObjectURL(paymentProofFile);
+    const validatedItems = items.map((item: any) => {
+      const rawId = item.productId || item.id;
+      const cleanId = rawId
+        ? String(rawId).replace(/^local-/i, "").replace(/^fake-/i, "")
+        : "";
+      if (!cleanId) {
+        throw new Error(`${item.name} is missing productId`);
       }
 
-      const payload = {
-        items: validatedItems,
-        shippingAddress,
-        phoneNumber,
-        email,
-        paymentMethod,
-        provider: provider || DEFAULT_PROVIDER_BY_METHOD[paymentMethod],
-        paymentProofUrl,
-        totalAmount: grandTotal,
-        taxAmount: tax,
-        shippingFees: shipping,
-        userId: userId || undefined,
+      const resolvedVendorId =
+        getItemVendorId(item) ||
+        vendors.find((v) => v.storeName === item.storeName)?.id;
+
+      if (!resolvedVendorId) {
+        throw new Error(
+          `${item.name} is missing vendorId assignment for multi-vendor distribution`,
+        );
+      }
+
+      return {
+        productId: cleanId,
+        vendorId: resolvedVendorId,
+        quantity: Number(item.quantity || 1),
       };
+    });
 
-      const order = await createOrder(payload);
+    const payload = {
+      items: validatedItems,
+      shippingAddress,
+      phoneNumber,
+      email,
+      paymentMethod,
+      provider: provider || DEFAULT_PROVIDER_BY_METHOD[paymentMethod],
+      paymentProofUrl: paymentProofUrl || undefined,
+      totalAmount: grandTotal,
+      taxAmount: tax,
+      shippingFees: shipping,
+      userId: userId || undefined,
+    };
 
-      clearCart();
-      navigate(`/order-success/${order.orderNumber || order.id}`);
-    } catch (err) {
-      console.error("Checkout submission failed:", err);
-      throw err;
-    } finally {
-      if (paymentProofUrl) {
-        URL.revokeObjectURL(paymentProofUrl);
-      }
-    }
+    const order = await createOrder(payload);
+
+    clearCart();
+    navigate(`/order-success/${order.orderNumber || order.id}`);
   };
 
   return (
@@ -206,6 +282,7 @@ const CheckoutPage = () => {
           <div className="lg:col-span-7">
             <div className="flex items-center gap-3 mb-6">
               <button
+                type="button"
                 onClick={() => navigate(-1)}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-white/5 rounded-full text-gray-700 dark:text-white transition-colors"
                 aria-label="Go back"
@@ -223,6 +300,7 @@ const CheckoutPage = () => {
               loading={loading}
               error={error}
               totalAmount={grandTotal}
+              vendors={cartVendors}
               selectedPayment={selectedPayment}
               onPaymentMethodChange={setSelectedPayment}
               defaultValues={{
@@ -281,38 +359,206 @@ const CheckoutPage = () => {
               </div>
 
               {selectedPayment === "MOBILE_MONEY" && (
-                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                    MoMo Payment & Vendor Contact Details
+                <div className="mt-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                      <Smartphone size={14} />
+                      Mobile Money (MoMo) Payment Details
+                    </p>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300">
+                      MTN MoMo &amp; Airtel Money • RWF{" "}
+                      {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                    Pay via the vendor&apos;s MoMo merchant code or registered
+                    mobile number below, verify the recipient name before
+                    confirming, and enter your transaction reference or payment
+                    proof in the form above:
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">
-                    Use your existing MoMo code with the vendor phone number below to pay or verify your order:
-                  </p>
-                  <div className="space-y-1.5 pt-1">
+
+                  <div className="space-y-2.5 pt-1">
                     {cartVendors.map((vendor) => (
                       <div
                         key={vendor.id}
-                        className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white/80 dark:bg-black/30 px-3 py-2 rounded-xl border border-gray-200/70 dark:border-white/10"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs bg-white/95 dark:bg-black/40 p-3.5 rounded-xl border border-gray-200/80 dark:border-white/10"
                       >
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {vendor.storeName}
-                        </span>
-                        {vendor.phone ? (
-                          <a
-                            href={`tel:${vendor.phone}`}
-                            className="inline-flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            <Phone size={13} />
-                            {vendor.phone}
-                          </a>
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">
-                            No vendor phone — support: {supportTeam.phone}
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-gray-900 dark:text-white block">
+                            {vendor.storeName}
                           </span>
-                        )}
+                          {vendor.accountName && (
+                            <span className="text-[11px] text-gray-600 dark:text-gray-300 block">
+                              Recipient Name:{" "}
+                              <strong className="font-semibold">
+                                {vendor.accountName}
+                              </strong>
+                            </span>
+                          )}
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">
+                            {vendor.momoCode && vendor.phone
+                              ? `Merchant MoMo Code: ${vendor.momoCode} • MoMo Number: ${vendor.phone}`
+                              : vendor.momoCode
+                                ? `Merchant MoMo Code: ${vendor.momoCode}`
+                                : vendor.phone
+                                  ? `Registered MoMo Number: ${vendor.phone}`
+                                  : "No direct MoMo credentials listed — contact support"}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {vendor.momoCode && (
+                            <button
+                              type="button"
+                              onClick={() => void handleCopy(vendor.momoCode!)}
+                              title="Copy MoMo payment code"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600/10 hover:bg-blue-600 hover:text-white text-blue-700 dark:text-blue-300 font-mono font-bold text-[11px] transition cursor-pointer"
+                            >
+                              {copiedValue === vendor.momoCode ? (
+                                <>
+                                  <Check
+                                    size={12}
+                                    className="text-emerald-500"
+                                  />
+                                  Copied Code
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={12} />
+                                  MoMo Code: {vendor.momoCode}
+                                </>
+                              )}
+                            </button>
+                          )}
+
+                          {vendor.phone ? (
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={`tel:${vendor.phone}`}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline text-[11px]"
+                              >
+                                <Phone size={12} />
+                                {vendor.phone}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => void handleCopy(vendor.phone!)}
+                                title="Copy MoMo number"
+                                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-blue-600 hover:text-white text-[11px] font-medium transition cursor-pointer"
+                              >
+                                {copiedValue === vendor.phone ? (
+                                  <>
+                                    <Check
+                                      size={12}
+                                      className="text-emerald-500"
+                                    />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={12} />
+                                    Copy
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            !vendor.momoCode && (
+                              <a
+                                href={`tel:${supportTeam.phone}`}
+                                className="inline-flex items-center gap-1 text-[11px] font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                Support: {supportTeam.phone}
+                              </a>
+                            )
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
+
+                  <div className="pt-1 flex items-start gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                    <ShieldCheck
+                      size={14}
+                      className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+                    />
+                    <span>
+                      Keep your MoMo transaction ID or SMS receipt handy until
+                      your order payment status is verified.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {selectedPayment === "CREDIT_CARD" && (
+                <div className="mt-5 p-4 rounded-2xl bg-gray-50 dark:bg-white/3 border border-gray-200 dark:border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <CreditCard size={14} className="text-blue-500" />
+                      Card Payment Information
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-200/80 dark:bg-white/10 text-gray-700 dark:text-gray-300">
+                      3D Secure • RWF {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                    Supports Visa and Mastercard. Ensure international/online
+                    card transactions and 3D Secure / OTP prompts are enabled on
+                    your issuing bank card.
+                  </p>
+                </div>
+              )}
+
+              {selectedPayment === "CASH_ON_DELIVERY" && (
+                <div className="mt-5 p-4 rounded-2xl bg-gray-50 dark:bg-white/3 border border-gray-200 dark:border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <Banknote size={14} className="text-emerald-500" />
+                      Cash on Delivery (COD) Details
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      Pay Upon Handover • RWF {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                    Settle{" "}
+                    <strong className="text-gray-900 dark:text-white">
+                      RWF {grandTotal.toLocaleString()}
+                    </strong>{" "}
+                    in exact cash with the delivery rider upon inspection at your
+                    delivery address. Keep your phone reachable for dispatch
+                    coordination.
+                  </p>
+                </div>
+              )}
+
+              {selectedPayment === "WORKFORCE_WALLET" && (
+                <div className="mt-5 p-4 rounded-2xl bg-gray-50 dark:bg-white/3 border border-gray-200 dark:border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <Wallet size={14} className="text-blue-500" />
+                      Workforce Wallet Settlement
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                      Instant Wallet Debit • RWF {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed flex items-start gap-1.5">
+                    <Info
+                      size={14}
+                      className="text-blue-500 shrink-0 mt-0.5"
+                    />
+                    <span>
+                      Deducts{" "}
+                      <strong className="text-gray-900 dark:text-white">
+                        RWF {grandTotal.toLocaleString()}
+                      </strong>{" "}
+                      directly from your eligible Workforce Wallet balance. Make
+                      sure your account is signed in and has sufficient funds
+                      before confirming.
+                    </span>
+                  </p>
                 </div>
               )}
             </div>
@@ -326,8 +572,17 @@ const CheckoutPage = () => {
               </h2>
 
               <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                {items.map((item) => {
-                  const itemVendor = vendors.find((v) => v.id === item.vendorId);
+                {items.map((item: any) => {
+                  const resolvedVendorId = getItemVendorId(item);
+                  const itemVendor: any = vendors.find(
+                    (v) => v.id === resolvedVendorId,
+                  );
+                  const vendorPhone =
+                    itemVendor?.phone || item?.product?.vendor?.phone;
+                  const vendorMomoCode =
+                    itemVendor?.momoCode ||
+                    (itemVendor as any)?.momo_code ||
+                    item?.product?.vendor?.momoCode;
                   const lineTotal = Number(item.price || 0) * item.quantity;
 
                   return (
@@ -344,7 +599,8 @@ const CheckoutPage = () => {
                         </h3>
                         <p className="text-xs text-gray-500">
                           Qty: {item.quantity}
-                          {itemVendor?.phone ? ` • Tel: ${itemVendor.phone}` : ""}
+                          {vendorMomoCode ? ` • MoMo: ${vendorMomoCode}` : ""}
+                          {vendorPhone ? ` • Tel: ${vendorPhone}` : ""}
                         </p>
                       </div>
 
@@ -356,7 +612,42 @@ const CheckoutPage = () => {
                 })}
               </div>
 
-              <div className="border-t border-gray-200 dark:border-white/5 mt-8 pt-6 space-y-3">
+              {/* Conditional Shipping Information Banner */}
+              <div
+                className={`mt-6 p-3.5 rounded-2xl border text-xs flex items-start gap-3 ${
+                  qualifiesForFreeShipping
+                    ? "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                    : "bg-amber-50/70 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-500/20 text-amber-800 dark:text-amber-300"
+                }`}
+              >
+                {qualifiesForFreeShipping ? (
+                  <PackageCheck
+                    size={18}
+                    className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+                  />
+                ) : (
+                  <Truck
+                    size={18}
+                    className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+                  />
+                )}
+                <div className="space-y-0.5">
+                  <p className="font-bold uppercase tracking-wider text-[11px]">
+                    {qualifiesForFreeShipping
+                      ? "Free Shipping Applied"
+                      : `Shipping Required — RF ${shipping.toLocaleString()}`}
+                  </p>
+                  <p className="text-[11px] opacity-90 leading-relaxed">
+                    {!hasShippableItems
+                      ? "No shipping fee applies to the items in your cart."
+                      : qualifiesForFreeShipping
+                        ? `Your order exceeds RF ${FREE_SHIPPING_THRESHOLD.toLocaleString()} and qualifies for free delivery.`
+                        : `Standard delivery fee applies. Add RF ${amountNeededForFreeShipping.toLocaleString()} more to unlock free shipping.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-white/5 mt-6 pt-6 space-y-3">
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                   <span>Subtotal</span>
                   <span className="text-gray-900 dark:text-white font-medium">
@@ -371,11 +662,20 @@ const CheckoutPage = () => {
                   </span>
                 </div>
 
-                <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                  <span>Delivery</span>
-                  <span className="text-gray-900 dark:text-white font-medium">
-                    RF {shipping.toLocaleString()}
-                  </span>
+                <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+                  <span>Shipping &amp; Delivery</span>
+                  {shipping === 0 ? (
+                    <span className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-emerald-500/15">
+                        Free Shipping
+                      </span>
+                      RF 0
+                    </span>
+                  ) : (
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      RF {shipping.toLocaleString()}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-white/5 pt-4 text-blue-600 dark:text-blue-400">
@@ -391,9 +691,7 @@ const CheckoutPage = () => {
                   onClose={() => setShowPaymentGate(false)}
                   onProceedToPayment={() => {
                     setShowPaymentGate(false);
-                    document
-                      .querySelector<HTMLFormElement>("#checkout-form")
-                      ?.requestSubmit();
+                    triggerCheckoutSubmit();
                   }}
                 />
               )}
@@ -404,9 +702,7 @@ const CheckoutPage = () => {
                   if (!user) {
                     setShowPaymentGate(true);
                   } else {
-                    document
-                      .querySelector<HTMLFormElement>("#checkout-form")
-                      ?.requestSubmit();
+                    triggerCheckoutSubmit();
                   }
                 }}
                 disabled={loading}

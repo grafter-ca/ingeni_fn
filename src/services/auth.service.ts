@@ -5,7 +5,7 @@ import type { LoginPayload, RegisterPayloadProps } from "../types/api";
 const resolveFrontendUrl = (): string => {
   if (
     typeof window !== "undefined" &&
-    window.location.hostname === "ingeni.onrender.com"
+    window.location.hostname === "ingeni.onrender.com" || "localhost:5173"
   ) {
     return window.location.origin.replace(/\/+$/, "");
   }

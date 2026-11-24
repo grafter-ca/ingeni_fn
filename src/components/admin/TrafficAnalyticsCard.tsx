@@ -9,6 +9,7 @@ import {
   Package,
   RefreshCw,
   Search,
+  Calendar,
 } from 'lucide-react';
 import {
   BarChart,
@@ -26,6 +27,8 @@ import { useAuthState } from '../../context/AuthContext';
 interface TrafficAnalyticsCardProps {
   vendorId: string;
   vendorName?: string;
+  productTitlesById?: Record<string, string>;
+  vendorNamesById?: Record<string, string>;
 }
 
 interface NormalizedStat {
@@ -34,11 +37,16 @@ interface NormalizedStat {
   count: number;
   productId: string | null;
   vendorId: string | null;
-  vendorName: string | null;
   createdAt: string | null;
 }
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+function stripLocalPrefix(value: unknown): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const cleaned = String(value).trim().replace(/^local-/i, '').trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 function extractCount(raw: any): number {
   if (typeof raw?.count === 'number' && Number.isFinite(raw.count)) {
@@ -51,6 +59,20 @@ function extractCount(raw: any): number {
     return Math.max(0, raw._count.id);
   }
   return 1;
+}
+
+function formatClickTimestamp(rawDate: string | null): string {
+  if (!rawDate) return 'No timestamp recorded';
+  const parsed = new Date(rawDate);
+  if (Number.isNaN(parsed.getTime())) return rawDate;
+  return parsed.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 function normalizeStatsPayload(payload: any): NormalizedStat[] {
@@ -66,18 +88,19 @@ function normalizeStatsPayload(payload: any): NormalizedStat[] {
     .filter((item: any) => item && typeof item === 'object')
     .map((item: any, idx: number) => ({
       id: String(item.id ?? `stat-${idx}`),
-      actionType: String(item.actionType ?? item.action_type ?? 'unknown').toLowerCase(),
+      actionType: String(item.actionType ?? 'unknown').toLowerCase(),
       count: extractCount(item),
-      productId: item.productId ? String(item.productId) : null,
-      vendorId: item.vendorId ? String(item.vendorId) : null,
-      vendorName: item.vendorName || item.storeName || null,
-      createdAt: item.createdAt || item.timestamp || null,
+      productId: stripLocalPrefix(item.productId),
+      vendorId: item.vendorId ? String(item.vendorId).trim() : null,
+      createdAt: item.createdAt ? String(item.createdAt) : null,
     }));
 }
 
 export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
   vendorId,
   vendorName,
+  productTitlesById = {},
+  vendorNamesById = {},
 }) => {
   const { isLoading: isAuthLoading, user } = useAuthState();
   const [stats, setStats] = useState<NormalizedStat[]>([]);
@@ -86,8 +109,29 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
 
   // Modal State for Clicks Breakdown
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'call' | 'whatsapp'>('call');
+  const [modalType, setModalType] = useState<'call' | 'whatsapp'>('whatsapp');
   const [modalSearch, setModalSearch] = useState('');
+
+  const resolveVendorLabel = useCallback(
+    (rowVendorId: string | null) => {
+      if (rowVendorId && vendorNamesById[rowVendorId]) {
+        return vendorNamesById[rowVendorId];
+      }
+      if (vendorName && (!rowVendorId || rowVendorId === vendorId)) {
+        return vendorName;
+      }
+      return rowVendorId ? `Vendor ${rowVendorId}` : 'Unknown Vendor';
+    },
+    [vendorId, vendorName, vendorNamesById],
+  );
+
+  const resolveProductLabel = useCallback(
+    (rowProductId: string | null) => {
+      if (!rowProductId) return 'Storefront / No Product ID';
+      return productTitlesById[rowProductId] || rowProductId;
+    },
+    [productTitlesById],
+  );
 
   const loadStats = useCallback(
     async (isCancelled?: () => boolean) => {
@@ -182,6 +226,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
       Record<
         string,
         {
+          fullLabel: string;
           whatsapp: number;
           call: number;
           total: number;
@@ -189,12 +234,21 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
         }
       >
     >((acc, curr) => {
-      const groupKey = curr.productId
-        ? `Product: ${curr.productId.length > 16 ? `${curr.productId.slice(0, 16)}…` : curr.productId}`
-        : curr.vendorName || vendorName || 'Store Activity';
+      const rawLabel = curr.productId
+        ? resolveProductLabel(curr.productId)
+        : resolveVendorLabel(curr.vendorId);
+
+      const groupKey =
+        rawLabel.length > 18 ? `${rawLabel.slice(0, 18)}…` : rawLabel;
 
       if (!acc[groupKey]) {
-        acc[groupKey] = { whatsapp: 0, call: 0, total: 0, items: [] };
+        acc[groupKey] = {
+          fullLabel: rawLabel,
+          whatsapp: 0,
+          call: 0,
+          total: 0,
+          items: [],
+        };
       }
 
       if (curr.actionType === 'whatsapp') {
@@ -211,6 +265,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
     return Object.entries(sourceBreakdown)
       .map(([name, data], idx) => ({
         name,
+        fullLabel: data.fullLabel,
         clicks: data.total,
         whatsapp: data.whatsapp,
         call: data.call,
@@ -218,20 +273,42 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
         color: CHART_COLORS[idx % CHART_COLORS.length],
       }))
       .sort((a, b) => b.clicks - a.clicks);
-  }, [stats, vendorName]);
+  }, [stats, resolveProductLabel, resolveVendorLabel]);
 
   const modalFilteredStats = useMemo(() => {
-    const q = modalSearch.trim().toLowerCase();
-    return stats.filter((s) => {
-      if (s.actionType !== modalType) return false;
-      if (!q) return true;
-      return (
-        s.id.toLowerCase().includes(q) ||
-        (s.productId || '').toLowerCase().includes(q) ||
-        (s.vendorId || '').toLowerCase().includes(q)
-      );
-    });
-  }, [stats, modalType, modalSearch]);
+    const rawQ = modalSearch.trim().toLowerCase();
+    const strippedQ = stripLocalPrefix(rawQ)?.toLowerCase() || '';
+
+    return stats
+      .filter((s) => {
+        if (s.actionType !== modalType) return false;
+        if (!rawQ) return true;
+
+        const productLabel = resolveProductLabel(s.productId).toLowerCase();
+        const vendorLabel = resolveVendorLabel(s.vendorId).toLowerCase();
+        const dateLabel = formatClickTimestamp(s.createdAt).toLowerCase();
+
+        return (
+          s.id.toLowerCase().includes(rawQ) ||
+          productLabel.includes(rawQ) ||
+          (s.productId || '').toLowerCase().includes(rawQ) ||
+          (strippedQ && (s.productId || '').toLowerCase().includes(strippedQ)) ||
+          vendorLabel.includes(rawQ) ||
+          (s.vendorId || '').toLowerCase().includes(rawQ) ||
+          dateLabel.includes(rawQ)
+        );
+      })
+      .sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+  }, [stats, modalType, modalSearch, resolveProductLabel, resolveVendorLabel]);
+
+  const modalTotalClicks = useMemo(
+    () => modalFilteredStats.reduce((sum, item) => sum + item.count, 0),
+    [modalFilteredStats],
+  );
 
   const openModalFor = (type: 'call' | 'whatsapp') => {
     setModalType(type);
@@ -350,7 +427,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
                       return (
                         <div className="bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs shadow-xl space-y-1.5 text-white max-w-xs">
                           <p className="font-bold text-sm text-zinc-100 border-b border-white/10 pb-1">
-                            {data.name}
+                            {data.fullLabel}
                           </p>
                           <div className="flex gap-3 text-[11px] text-zinc-300">
                             <span className="text-emerald-400">
@@ -382,7 +459,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             {chartData.map((item) => (
               <div
-                key={item.name}
+                key={item.fullLabel}
                 className="p-3.5 rounded-xl border border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-[#121212] space-y-2"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -394,7 +471,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
                       <Store size={14} />
                     </div>
                     <span className="text-xs font-bold text-zinc-900 dark:text-white truncate">
-                      {item.name}
+                      {item.fullLabel}
                     </span>
                   </div>
                   <span className="text-xs font-black text-zinc-700 dark:text-zinc-300 shrink-0">
@@ -502,7 +579,7 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
             onClick={() => setIsModalOpen(false)}
           />
 
-          <div className="relative z-10 bg-white dark:bg-[#121212] border border-zinc-200 dark:border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative z-10 bg-white dark:bg-[#121212] border border-zinc-200 dark:border-white/10 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-white/5">
               <div className="flex items-center gap-2.5">
@@ -520,11 +597,14 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
                 <div>
                   <h3 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
                     {modalType === 'whatsapp'
-                      ? 'WhatsApp Interaction Records'
-                      : 'Call Interaction Records'}
+                      ? 'WhatsApp Click Audit Log'
+                      : 'Call Click Audit Log'}
                   </h3>
                   <p className="text-[11px] text-zinc-500">
-                    {modalFilteredStats.length} matching record(s)
+                    {modalFilteredStats.length} record(s) ·{' '}
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                      {modalTotalClicks} total click(s)
+                    </span>
                   </p>
                 </div>
               </div>
@@ -549,78 +629,103 @@ export const TrafficAnalyticsCard: React.FC<TrafficAnalyticsCardProps> = ({
                   type="text"
                   value={modalSearch}
                   onChange={(e) => setModalSearch(e.target.value)}
-                  placeholder="Filter by product ID, vendor ID, or record ID..."
+                  placeholder="Filter by productId, vendorId, date, or id..."
                   className="w-full bg-zinc-50 dark:bg-[#1a1a1a] border border-zinc-200 dark:border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs text-zinc-900 dark:text-white outline-none focus:border-blue-500/40"
                 />
               </div>
             </div>
 
             {/* Modal Content */}
-            <div className="p-4 sm:p-5 max-h-[55vh] overflow-y-auto space-y-3">
+            <div className="p-4 sm:p-5 max-h-[58vh] overflow-y-auto space-y-3">
               {modalFilteredStats.length === 0 ? (
                 <div className="text-center py-10 text-xs text-zinc-400">
                   No tracking log records match your current filter.
                 </div>
               ) : (
                 modalFilteredStats.map((stat) => {
-                  const parsedDate = stat.createdAt
-                    ? new Date(stat.createdAt)
-                    : null;
-                  const formattedDate =
-                    parsedDate && !Number.isNaN(parsedDate.getTime())
-                      ? parsedDate.toLocaleString()
-                      : null;
+                  const productLabel = resolveProductLabel(stat.productId);
+                  const vendorLabel = resolveVendorLabel(stat.vendorId);
+                  const formattedTimestamp = formatClickTimestamp(stat.createdAt);
 
                   return (
                     <div
                       key={stat.id}
-                      className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1a1a1a] border border-zinc-200 dark:border-white/5 space-y-2"
+                      className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1a1a1a] border border-zinc-200 dark:border-white/5 space-y-2.5"
                     >
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5 truncate pr-2">
-                          <Package
-                            size={13}
-                            className={
-                              modalType === 'whatsapp'
-                                ? 'text-emerald-500'
-                                : 'text-blue-500'
-                            }
-                          />
-                          {stat.productId
-                            ? `Product: ${stat.productId}`
-                            : 'Store Interaction'}
-                        </span>
-
-                        {formattedDate && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium shrink-0">
-                            {formattedDate}
+                      {/* Product Clicked */}
+                      <div className="flex items-start justify-between gap-2 text-xs">
+                        <div className="min-w-0">
+                          <span className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                            <Package
+                              size={13}
+                              className={
+                                modalType === 'whatsapp'
+                                  ? 'text-emerald-500 shrink-0'
+                                  : 'text-blue-500 shrink-0'
+                              }
+                            />
+                            <span className="truncate">{productLabel}</span>
                           </span>
-                        )}
+                          {stat.productId && (
+                            <p className="text-[10px] font-mono text-zinc-500 pl-5 mt-0.5">
+                              productId: {stat.productId}
+                            </p>
+                          )}
+                        </div>
+
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${
+                            modalType === 'whatsapp'
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                          }`}
+                        >
+                          {stat.count} {stat.count === 1 ? 'click' : 'clicks'}
+                        </span>
                       </div>
 
-                      <div className="text-[11px] text-zinc-600 dark:text-zinc-300 space-y-1 pl-5 border-l-2 border-zinc-300 dark:border-zinc-700">
-                        {stat.vendorId && (
-                          <p>
-                            <b className="text-zinc-400">Vendor ID:</b>{' '}
-                            <span className="font-mono text-[10px]">
-                              {stat.vendorId}
+                      {/* Date Clicked & Vendor Info */}
+                      <div className="text-[11px] text-zinc-600 dark:text-zinc-300 space-y-1.5 pl-4 border-l-2 border-zinc-300 dark:border-zinc-700">
+                        <p className="flex items-center gap-1.5">
+                          <Calendar
+                            size={12}
+                            className="text-zinc-400 shrink-0"
+                          />
+                          <b className="text-zinc-500 dark:text-zinc-400">
+                            Date Clicked (createdAt):
+                          </b>
+                          <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                            {formattedTimestamp}
+                          </span>
+                        </p>
+
+                        <p className="flex items-start gap-1.5">
+                          <Store
+                            size={12}
+                            className="text-zinc-400 shrink-0 mt-0.5"
+                          />
+                          <span>
+                            <b className="text-zinc-500 dark:text-zinc-400">
+                              Vendor:
+                            </b>{' '}
+                            <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                              {vendorLabel}
                             </span>
-                          </p>
-                        )}
-                        <p>
-                          <b className="text-zinc-400">Action Type:</b>{' '}
+                            {stat.vendorId && (
+                              <span className="block font-mono text-[10px] text-zinc-500 mt-0.5">
+                                vendorId: {stat.vendorId}
+                              </span>
+                            )}
+                          </span>
+                        </p>
+
+                        <p className="text-[10px] text-zinc-500">
+                          <b>actionType:</b>{' '}
                           <span className="uppercase font-semibold">
                             {stat.actionType}
                           </span>{' '}
-                          <span className="text-zinc-400">
-                            (×{stat.count})
-                          </span>
-                        </p>
-                        <p>
-                          <b className="text-zinc-400">Record ID:</b>{' '}
-                          <span className="font-mono text-[10px] text-zinc-400">
-                            {stat.id}
-                          </span>
+                          · <b>id:</b>{' '}
+                          <span className="font-mono">{stat.id}</span>
                         </p>
                       </div>
                     </div>

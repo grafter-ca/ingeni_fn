@@ -9,6 +9,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { socket } from "../../../libs/socket";
 
 export interface PlatformConfigState {
   maintenance: boolean;
@@ -22,7 +23,7 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
 
 const resolveApiBase = (rawUrl: string): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== "undefined" &&
       window.location.hostname === "ingeni.onrender.com");
 
@@ -81,16 +82,20 @@ const GlobalConfig = () => {
         credentials: "include",
       });
 
-      if (!res.ok) {
-        const message =
-          res.status === 404
+      const rawText = await res.text();
+      const looksLikeHtml = rawText.trim().toLowerCase().startsWith("<!doctype");
+
+      if (!res.ok || looksLikeHtml) {
+        const message = looksLikeHtml
+          ? `Expected JSON from ${endpoint}, received HTML instead. Check VITE_API_URL or backend server port.`
+          : res.status === 404
             ? "Endpoint GET /api/admin/config is not yet exposed on the backend."
             : `Failed to fetch live configuration (HTTP ${res.status}).`;
         setSyncError(message);
         return;
       }
 
-      const payload = await res.json();
+      const payload = rawText ? JSON.parse(rawText) : {};
       const normalized = normalizeConfig(extractConfigData(payload));
       setConfigs(normalized);
       setSavedConfigs(normalized);
@@ -105,6 +110,25 @@ const GlobalConfig = () => {
   useEffect(() => {
     void loadLiveConfig();
   }, [loadLiveConfig]);
+
+  useEffect(() => {
+    const handleConfigUpdated = (incoming: any) => {
+      const data = extractConfigData(incoming);
+      if (!data || typeof data !== "object") return;
+      const normalized = normalizeConfig({ ...DEFAULT_CONFIG, ...data });
+      setConfigs(normalized);
+      setSavedConfigs(normalized);
+      setSyncError(null);
+    };
+
+    socket?.on?.("admin:config-updated", handleConfigUpdated);
+    socket?.on?.("system:config-updated", handleConfigUpdated);
+
+    return () => {
+      socket?.off?.("admin:config-updated", handleConfigUpdated);
+      socket?.off?.("system:config-updated", handleConfigUpdated);
+    };
+  }, []);
 
   const isDirty = useMemo(
     () =>
@@ -131,19 +155,28 @@ const GlobalConfig = () => {
         body: JSON.stringify(configs),
       });
 
-      if (!res.ok) {
-        throw new Error(`Config update failed (HTTP ${res.status})`);
+      const rawText = await res.text();
+      const looksLikeHtml = rawText.trim().toLowerCase().startsWith("<!doctype");
+
+      if (!res.ok || looksLikeHtml) {
+        throw new Error(
+          looksLikeHtml
+            ? `Expected JSON from ${endpoint}, received HTML instead. Check VITE_API_URL or backend server port.`
+            : `Config update failed (HTTP ${res.status})`,
+        );
       }
 
       let nextState = configs;
-      try {
-        const payload = await res.json();
-        const data = extractConfigData(payload);
-        if (data && typeof data === "object") {
-          nextState = normalizeConfig({ ...configs, ...data });
+      if (rawText) {
+        try {
+          const payload = JSON.parse(rawText);
+          const data = extractConfigData(payload);
+          if (data && typeof data === "object") {
+            nextState = normalizeConfig({ ...configs, ...data });
+          }
+        } catch {
+          // Non-JSON 200/204 response still counts as committed
         }
-      } catch {
-        // 204 or non-JSON response still counts as committed
       }
 
       setConfigs(nextState);

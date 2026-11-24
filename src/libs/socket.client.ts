@@ -1,10 +1,11 @@
 import { io } from 'socket.io-client';
 
 const RAW_API_URL = (import.meta.env.VITE_API_URL || '').trim();
+const RAW_SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || '').trim();
 
-const resolveSocketOrigin = (rawUrl: string): string => {
+const resolveSocketOrigin = (rawUrl: string, rawSocketUrl: string): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== 'undefined' &&
       window.location.hostname === 'ingeni.onrender.com');
 
@@ -12,16 +13,18 @@ const resolveSocketOrigin = (rawUrl: string): string => {
     return window.location.origin;
   }
 
-  if (!rawUrl) {
+  const preferred = rawSocketUrl || rawUrl;
+  if (!preferred) {
     return 'https://ingeri-api.onrender.com';
   }
 
-  return rawUrl
+  return preferred
     .replace(/\/+$/, '')
-    .replace(/\/api$/, '');
+    .replace(/\/api$/, '')
+    .replace(/\/ws$/, '');
 };
 
-const SOCKET_ORIGIN = resolveSocketOrigin(RAW_API_URL);
+const SOCKET_ORIGIN = resolveSocketOrigin(RAW_API_URL, RAW_SOCKET_URL);
 
 // Connect to your NestJS backend socket namespace (/ws)
 export const socket = io(`${SOCKET_ORIGIN}/ws`, {

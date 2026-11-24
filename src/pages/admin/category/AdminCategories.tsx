@@ -64,7 +64,10 @@ export default function AdminCategories() {
       ? list.filter((cat: any) => {
           const name = String(cat?.name || "").toLowerCase();
           const slug = String(cat?.slug || "").toLowerCase();
-          return name.includes(q) || slug.includes(q);
+          const parentName = String(cat?.parent?.name || "").toLowerCase();
+          return (
+            name.includes(q) || slug.includes(q) || parentName.includes(q)
+          );
         })
       : list;
 
@@ -203,6 +206,7 @@ export default function AdminCategories() {
           </div>
 
           <CategoryForm
+            categories={Array.isArray(categories) ? categories : []}
             formData={formData}
             setFormData={setFormData}
             isEditing={isEditing}
@@ -225,7 +229,7 @@ export default function AdminCategories() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search categories by name or slug..."
+              placeholder="Search categories by name, slug, or parent..."
               className="w-full bg-[#050505] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-gray-600 outline-none focus:border-blue-500/40 transition"
             />
           </div>

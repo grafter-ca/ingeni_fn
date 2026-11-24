@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { OrderClient } from "../services/order.service";
 import type { Order, CreateOrderDto } from "../types/api";
-import { socket } from "../libs/socket"; 
+import { socket } from "../libs/socket";
 import type { Socket } from "socket.io-client";
 
 interface OrderState {
@@ -12,7 +12,7 @@ interface OrderState {
   currentOrder: Order | null;
   orders: Order[];
   filteredOrders: Order[];
-  statusFilter: string;    
+  statusFilter: string;
   socket: Socket | null;
 
   // --- SOCKET ACTIONS ---
@@ -28,18 +28,42 @@ interface OrderState {
   createOrder: (payload: CreateOrderDto) => Promise<Order>;
   fetchMyOrders: () => Promise<void>;
   fetchOrderById: (id: string) => Promise<Order>;
-  submitPaymentProof: (orderId: string, proofUrl: string, transactionReference?: string) => Promise<Order>;
+  submitPaymentProof: (
+    orderId: string,
+    proofUrl: string,
+    transactionReference?: string,
+  ) => Promise<Order>;
 
   // --- VENDOR/ADMIN ACTIONS ---
   fetchVendorOrders: () => Promise<void>;
   fetchAllOrders: (status?: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: string) => Promise<Order>;
-  updatePaymentStatus: (orderId: string, paymentStatus: string) => Promise<Order>;
+  updatePaymentStatus: (
+    orderId: string,
+    paymentStatus: string,
+  ) => Promise<Order>;
   deleteOrder: (orderId: string) => Promise<void>;
 
   // --- VENDOR FINANCIAL / ITEM HELPERS ---
   getVendorTotalRevenue: (vendorId?: string) => number;
   getVendorNetBalance: (vendorId?: string) => number;
+}
+
+function mergeOrderRecord(existing: Order | undefined | null, incoming: any): Order {
+  const unwrapped =
+    incoming && typeof incoming === "object" && "order" in incoming && incoming.order
+      ? incoming.order
+      : incoming;
+
+  if (!existing) {
+    return unwrapped as Order;
+  }
+
+  return {
+    ...existing,
+    ...unwrapped,
+    items: Array.isArray(unwrapped?.items) ? unwrapped.items : existing.items,
+  };
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -49,26 +73,37 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   orders: [],
   filteredOrders: [],
   statusFilter: "all",
-  socket: socket, // Reference the central socket instance from libs
+  socket: socket,
 
   // --- INIT SOCKET ---
   initSocket: () => {
-    // Prevent registering duplicate listeners if already initialized
     if (socket.hasListeners && socket.hasListeners("orderCreated")) return;
     if (!socket.hasListeners && socket.connected) return;
 
     socket.on("connect", () => {
-      console.log("⚡ Order Store connected to real-time socket server:", socket.id);
+      console.log(
+        "⚡ Order Store connected to real-time socket server:",
+        socket.id,
+      );
     });
 
     socket.on("disconnect", (reason) => {
       console.log("❌ Order Store disconnected from Socket.io server:", reason);
     });
 
-    // Listen for order updates, creations, or deletions from the server
     socket.on("orderCreated", (newOrder: Order) => {
+      const normalized = mergeOrderRecord(null, newOrder);
       set((state) => {
-        const updatedOrders = [newOrder, ...state.orders];
+        const exists = state.orders.some(
+          (o) => String(o.id) === String(normalized.id),
+        );
+        const updatedOrders = exists
+          ? state.orders.map((o) =>
+              String(o.id) === String(normalized.id)
+                ? mergeOrderRecord(o, normalized)
+                : o,
+            )
+          : [normalized, ...state.orders];
         return { orders: updatedOrders };
       });
       get().applyFilters();
@@ -76,8 +111,16 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     socket.on("orderUpdated", (updatedOrder: Order) => {
       set((state) => ({
-        orders: state.orders.map((o) => (String(o.id) === String(updatedOrder.id) ? updatedOrder : o)),
-        currentOrder: state.currentOrder && String(state.currentOrder.id) === String(updatedOrder.id) ? updatedOrder : state.currentOrder,
+        orders: state.orders.map((o) =>
+          String(o.id) === String(updatedOrder.id)
+            ? mergeOrderRecord(o, updatedOrder)
+            : o,
+        ),
+        currentOrder:
+          state.currentOrder &&
+          String(state.currentOrder.id) === String(updatedOrder.id)
+            ? mergeOrderRecord(state.currentOrder, updatedOrder)
+            : state.currentOrder,
       }));
       get().applyFilters();
     });
@@ -85,7 +128,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     socket.on("orderDeleted", ({ id }: { id: string }) => {
       set((state) => ({
         orders: state.orders.filter((o) => String(o.id) !== String(id)),
-        currentOrder: state.currentOrder && String(state.currentOrder.id) === String(id) ? null : state.currentOrder,
+        currentOrder:
+          state.currentOrder && String(state.currentOrder.id) === String(id)
+            ? null
+            : state.currentOrder,
       }));
       get().applyFilters();
     });
@@ -108,13 +154,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   // --- CORE FILTER COMPILER ---
   applyFilters: () => {
     const { orders, statusFilter } = get();
-    
+
     if (!statusFilter || statusFilter.toLowerCase() === "all") {
       set({ filteredOrders: orders });
     } else {
       set({
         filteredOrders: orders.filter(
-          (order) => order.status?.trim().toUpperCase() === statusFilter.trim().toUpperCase()
+          (order) =>
+            order.status?.trim().toUpperCase() ===
+            statusFilter.trim().toUpperCase(),
         ),
       });
     }
@@ -127,16 +175,31 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   createOrder: async (payload) => {
     try {
       set({ loading: true, error: null });
-      const order = await OrderClient.create(payload);
-      set((state) => ({
-        orders: [order, ...state.orders],
-        currentOrder: order,
-        loading: false,
-      }));
+      const created = await OrderClient.create(payload);
+      const order = mergeOrderRecord(null, created);
+      set((state) => {
+        const exists = state.orders.some(
+          (o) => String(o.id) === String(order.id),
+        );
+        return {
+          orders: exists
+            ? state.orders.map((o) =>
+                String(o.id) === String(order.id)
+                  ? mergeOrderRecord(o, order)
+                  : o,
+              )
+            : [order, ...state.orders],
+          currentOrder: order,
+          loading: false,
+        };
+      });
       get().applyFilters();
       return order;
     } catch (err: any) {
-      set({ error: err?.message || "Failed to create order", loading: false });
+      set({
+        error: err?.message || "Failed to create order",
+        loading: false,
+      });
       throw err;
     }
   },
@@ -146,17 +209,21 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       const orders = await OrderClient.getMyOrders();
-      set({ orders, loading: false });
-      get().applyFilters(); 
+      set({ orders: Array.isArray(orders) ? orders : [], loading: false });
+      get().applyFilters();
     } catch (err: any) {
-      set({ error: err?.message || "Failed to fetch orders", loading: false });
+      set({
+        error: err?.message || "Failed to fetch orders",
+        loading: false,
+      });
     }
   },
 
   fetchOrderById: async (id: string) => {
     try {
       set({ loading: true, error: null });
-      const order = await OrderClient.getById(id);
+      const raw = await OrderClient.getById(id);
+      const order = mergeOrderRecord(get().currentOrder, raw);
       set({ currentOrder: order, loading: false });
       return order;
     } catch (err: any) {
@@ -169,18 +236,41 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   submitPaymentProof: async (orderId, proofUrl, transactionReference) => {
     try {
       set({ loading: true, error: null });
-      const updatedOrder = await OrderClient.submitPaymentProof(orderId, proofUrl, transactionReference);
+      const rawUpdated = await OrderClient.submitPaymentProof(
+        orderId,
+        proofUrl,
+        transactionReference,
+      );
 
-      set((state) => ({
-        orders: state.orders.map((o) => (String(o.id) === String(orderId) ? updatedOrder : o)),
-        currentOrder: state.currentOrder && String(state.currentOrder.id) === String(orderId) ? updatedOrder : state.currentOrder,
-        loading: false,
-      }));
+      set((state) => {
+        const existingInList = state.orders.find(
+          (o) => String(o.id) === String(orderId),
+        );
+        const merged = mergeOrderRecord(
+          existingInList || state.currentOrder,
+          rawUpdated,
+        );
+
+        return {
+          orders: state.orders.map((o) =>
+            String(o.id) === String(orderId) ? mergeOrderRecord(o, merged) : o,
+          ),
+          currentOrder:
+            state.currentOrder &&
+            String(state.currentOrder.id) === String(orderId)
+              ? mergeOrderRecord(state.currentOrder, merged)
+              : state.currentOrder,
+          loading: false,
+        };
+      });
 
       get().applyFilters();
-      return updatedOrder;
+      return mergeOrderRecord(get().currentOrder, rawUpdated);
     } catch (err: any) {
-      set({ error: err?.message || "Failed to submit payment proof", loading: false });
+      set({
+        error: err?.message || "Failed to submit payment proof",
+        loading: false,
+      });
       throw err;
     }
   },
@@ -190,10 +280,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     try {
       set({ loading: true, error: null });
       const orders = await OrderClient.getVendorOrders();
-      set({ orders, loading: false });
-      get().applyFilters(); 
+      set({ orders: Array.isArray(orders) ? orders : [], loading: false });
+      get().applyFilters();
     } catch (err: any) {
-      set({ error: err?.message || "Failed to fetch vendor orders", loading: false });
+      set({
+        error: err?.message || "Failed to fetch vendor orders",
+        loading: false,
+      });
     }
   },
 
@@ -203,12 +296,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       set({ loading: true, error: null });
       const targetFilter = status || get().statusFilter;
       const queryParam = targetFilter === "all" ? undefined : targetFilter;
-      
+
       const orders = await OrderClient.getAllOrders(queryParam);
-      set({ orders, loading: false });
+      set({ orders: Array.isArray(orders) ? orders : [], loading: false });
       get().applyFilters();
     } catch (err: any) {
-      set({ error: err?.message || "Failed to fetch all orders", loading: false });
+      set({
+        error: err?.message || "Failed to fetch all orders",
+        loading: false,
+      });
     }
   },
 
@@ -216,18 +312,38 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   updateOrderStatus: async (orderId, status) => {
     try {
       set({ loading: true, error: null });
-      const updatedOrder = await OrderClient.updateStatus(orderId, status);
-      
-      set((state) => ({
-        orders: state.orders.map((o) => (o.id === orderId ? updatedOrder : o)),
-        currentOrder: state.currentOrder?.id === orderId ? updatedOrder : state.currentOrder,
-        loading: false,
-      }));
-      
+      const rawUpdated = await OrderClient.updateStatus(orderId, status);
+
+      let resolvedOrder: Order | null = null;
+      set((state) => {
+        const existing =
+          state.orders.find((o) => String(o.id) === String(orderId)) ||
+          state.currentOrder;
+        resolvedOrder = mergeOrderRecord(existing, rawUpdated);
+
+        return {
+          orders: state.orders.map((o) =>
+            String(o.id) === String(orderId) ? resolvedOrder! : o,
+          ),
+          currentOrder:
+            state.currentOrder &&
+            String(state.currentOrder.id) === String(orderId)
+              ? resolvedOrder
+              : state.currentOrder,
+          loading: false,
+        };
+      });
+
       get().applyFilters();
-      return updatedOrder;
+      if (!resolvedOrder) {
+        throw new Error("Failed to resolve updated order");
+      }
+      return resolvedOrder;
     } catch (err: any) {
-      set({ error: err?.message || "Failed to update order status", loading: false });
+      set({
+        error: err?.message || "Failed to update order status",
+        loading: false,
+      });
       throw err;
     }
   },
@@ -236,20 +352,41 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   updatePaymentStatus: async (orderId, paymentStatus) => {
     try {
       set({ loading: true, error: null });
-      const updatedOrder = OrderClient.updatePaymentStatus
-        ? await OrderClient.updatePaymentStatus(orderId, paymentStatus)
-        : await OrderClient.updateStatus(orderId, paymentStatus);
-      
-      set((state) => ({
-        orders: state.orders.map((o) => (o.id === orderId ? updatedOrder : o)),
-        currentOrder: state.currentOrder?.id === orderId ? updatedOrder : state.currentOrder,
-        loading: false,
-      }));
-      
+      const rawUpdated = await OrderClient.updatePaymentStatus(
+        orderId,
+        paymentStatus,
+      );
+
+      let resolvedOrder: Order | null = null;
+      set((state) => {
+        const existing =
+          state.orders.find((o) => String(o.id) === String(orderId)) ||
+          state.currentOrder;
+        resolvedOrder = mergeOrderRecord(existing, rawUpdated);
+
+        return {
+          orders: state.orders.map((o) =>
+            String(o.id) === String(orderId) ? resolvedOrder! : o,
+          ),
+          currentOrder:
+            state.currentOrder &&
+            String(state.currentOrder.id) === String(orderId)
+              ? resolvedOrder
+              : state.currentOrder,
+          loading: false,
+        };
+      });
+
       get().applyFilters();
-      return updatedOrder;
+      if (!resolvedOrder) {
+        throw new Error("Failed to resolve updated order");
+      }
+      return resolvedOrder;
     } catch (err: any) {
-      set({ error: err?.message || "Failed to update payment status", loading: false });
+      set({
+        error: err?.message || "Failed to update payment status",
+        loading: false,
+      });
       throw err;
     }
   },
@@ -258,33 +395,47 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   deleteOrder: async (orderId) => {
     try {
       set({ loading: true, error: null });
-      const updatedOrder = await OrderClient.updateStatus(orderId, "CANCELLED");
+      const rawUpdated = await OrderClient.updateStatus(orderId, "CANCELLED");
 
       set((state) => ({
-        orders: state.orders.map((o) => (o.id === orderId ? updatedOrder : o)),
+        orders: state.orders.map((o) =>
+          String(o.id) === String(orderId)
+            ? mergeOrderRecord(o, rawUpdated)
+            : o,
+        ),
+        currentOrder:
+          state.currentOrder && String(state.currentOrder.id) === String(orderId)
+            ? mergeOrderRecord(state.currentOrder, rawUpdated)
+            : state.currentOrder,
         loading: false,
       }));
-      
+
       get().applyFilters();
     } catch (err: any) {
-      set({ error: "Failed to cancel order", loading: false });
+      set({
+        error: err?.message || "Failed to cancel order",
+        loading: false,
+      });
       throw err;
     }
   },
 
-  // --- VENDOR FINANCIAL CALCULATORS (Safe checking items and vendor fields) ---
+  // --- VENDOR FINANCIAL CALCULATORS ---
   getVendorTotalRevenue: (vendorId) => {
     const { orders } = get();
     return orders.reduce((acc, order) => {
       const items = Array.isArray(order.items) ? order.items : [];
       const orderRev = items.reduce((itemAcc, item: any) => {
-        // If vendorId is supplied, filter specifically for items belonging to this vendor
-        if (vendorId && item?.vendorId !== vendorId && item?.vendor?.id !== vendorId) {
+        if (
+          vendorId &&
+          item?.vendorId !== vendorId &&
+          item?.vendor?.id !== vendorId
+        ) {
           return itemAcc;
         }
         const price = Number(item?.priceAtPurchase) || 0;
         const qty = Number(item?.quantity) || 1;
-        return itemAcc + (price * qty);
+        return itemAcc + price * qty;
       }, 0);
       return acc + orderRev;
     }, 0);
@@ -295,10 +446,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     return orders.reduce((acc, order) => {
       const items = Array.isArray(order.items) ? order.items : [];
       const orderEarnings = items.reduce((itemAcc, item: any) => {
-        if (vendorId && item?.vendorId !== vendorId && item?.vendor?.id !== vendorId) {
+        if (
+          vendorId &&
+          item?.vendorId !== vendorId &&
+          item?.vendor?.id !== vendorId
+        ) {
           return itemAcc;
         }
-        // Directly maps to safeorder[0].items[0].vendorEarnings
         const earnings = Number(item?.vendorEarnings) || 0;
         return itemAcc + earnings;
       }, 0);

@@ -14,6 +14,12 @@ import {
   AlertTriangle,
   Shield,
   Share2,
+  Phone,
+  Mail,
+  MapPin,
+  Copy,
+  Truck,
+  Clock,
 } from "lucide-react";
 
 import { useCartActions } from "../../hooks/useCartActions";
@@ -28,7 +34,7 @@ import ProductReviews from "../../features/admin/product/ProductReviews";
 import type { ReviewItem } from "../../types";
 import { motion } from "framer-motion";
 import { AuthPromptModal } from "../../features/product/AuthPromptModal";
-import { useAuthState } from "../../context/AuthContext"; 
+import { useAuthState } from "../../context/AuthContext";
 
 type NormalizedImage = {
   url: string;
@@ -42,7 +48,8 @@ export default function ProductDetail() {
   const isAuthenticated = Boolean(authState?.user);
 
   const { handleAddToCart } = useCartActions();
-  const { wishlistStatusMap, checkWishlist, toggleWishlist, products } = useProductStore();
+  const { wishlistStatusMap, checkWishlist, toggleWishlist, products } =
+    useProductStore();
 
   const [product, setProduct] = useState<ApiProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +60,7 @@ export default function ProductDetail() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+  const [copiedContact, setCopiedContact] = useState<string | null>(null);
 
   // Modal Visibility State for Auth Prompt
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -79,12 +87,11 @@ export default function ProductDetail() {
     let isMounted = true;
     setIsLoading(true);
     setError(null);
-    setImageIndex(0); // Reset gallery index when navigating to a new product
-    setQuantity(1);   // Reset purchase quantity counter
+    setImageIndex(0);
+    setQuantity(1);
 
     const loadProductData = async () => {
       try {
-        // 1. Fetch Product details
         const productData = await productService.getProduct(id);
         if (!isMounted) return;
 
@@ -95,11 +102,11 @@ export default function ProductDetail() {
 
         setProduct(productData);
 
-        // 2. Fetch persisted reviews from DB service
         setIsReviewsLoading(true);
         try {
           const fetchedReviews = await productService.getProductReviews(id);
-          if (isMounted) setReviews(Array.isArray(fetchedReviews) ? fetchedReviews : []);
+          if (isMounted)
+            setReviews(Array.isArray(fetchedReviews) ? fetchedReviews : []);
         } catch (revErr) {
           console.error("Failed to load database reviews:", revErr);
           if (isMounted) setReviews([]);
@@ -107,14 +114,12 @@ export default function ProductDetail() {
           if (isMounted) setIsReviewsLoading(false);
         }
 
-        // 3. Check wishlist status via store action
         try {
           await checkWishlist(id);
         } catch (wishErr) {
           console.error("Failed to check wishlist status via store:", wishErr);
         }
-
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setError("Component missing from master data record");
         }
@@ -125,16 +130,121 @@ export default function ProductDetail() {
       }
     };
 
-    loadProductData();
+    void loadProductData();
 
     return () => {
       isMounted = false;
     };
   }, [id, checkWishlist]);
 
+  // Normalize vendor contact fields across possible backend shapes
+  const vendorContact = useMemo(() => {
+    const vendor: any = product?.vendor || {};
+    const vendorUser: any = vendor?.user || {};
+
+    const phone =
+      vendor?.phone ||
+      vendor?.phoneNumber ||
+      vendor?.contactPhone ||
+      vendor?.momoNumber ||
+      vendorUser?.phone ||
+      vendorUser?.phoneNumber ||
+      null;
+
+    const email =
+      vendor?.email ||
+      vendor?.contactEmail ||
+      vendorUser?.email ||
+      null;
+
+    const location =
+      vendor?.location ||
+      vendor?.address ||
+      vendor?.city ||
+      vendor?.district ||
+      vendorUser?.location ||
+      null;
+
+    return { phone, email, location };
+  }, [product]);
+
+  // Normalize shipping details from product or vendor fields with sensible defaults
+  const shippingInfo = useMemo(() => {
+    const prodAny: any = product || {};
+    const vendorAny: any = prodAny?.vendor || {};
+
+    const rawShippingFee =
+      prodAny?.shippingFee ??
+      prodAny?.deliveryFee ??
+      vendorAny?.shippingFee ??
+      vendorAny?.deliveryFee ??
+      null;
+
+    const freeShipping = Boolean(
+      prodAny?.freeShipping ??
+        prodAny?.isFreeShipping ??
+        vendorAny?.freeShipping ??
+        rawShippingFee === 0,
+    );
+
+    const feeLabel = freeShipping
+      ? "Free Shipping"
+      : rawShippingFee !== null && rawShippingFee !== undefined && rawShippingFee !== ""
+        ? `RWF ${Number(rawShippingFee).toLocaleString()}`
+        : "Calculated at checkout";
+
+    const estimatedDelivery =
+      prodAny?.estimatedDelivery ||
+      prodAny?.deliveryTime ||
+      prodAny?.shippingTime ||
+      vendorAny?.estimatedDelivery ||
+      vendorAny?.deliveryTime ||
+      "1–3 business days (Kigali & nationwide)";
+
+    const dispatchOrigin =
+      prodAny?.shippingOrigin ||
+      prodAny?.dispatchLocation ||
+      vendorAny?.location ||
+      vendorAny?.address ||
+      vendorAny?.city ||
+      "Kigali Fulfillment Hub";
+
+    const notes =
+      prodAny?.shippingNotes ||
+      prodAny?.deliveryNotes ||
+      vendorAny?.shippingPolicy ||
+      "SMS/tracking notification sent upon courier dispatch.";
+
+    return {
+      feeLabel,
+      estimatedDelivery,
+      dispatchOrigin,
+      notes,
+    };
+  }, [product]);
+
+  const handleCopyContact = useCallback(
+    async (value: string, label: string) => {
+      try {
+        await navigator.clipboard.writeText(value);
+        setCopiedContact(label);
+        setTimeout(() => {
+          setCopiedContact((prev) => (prev === label ? null : prev));
+        }, 2000);
+      } catch (err) {
+        console.error("Failed to copy contact:", err);
+      }
+    },
+    [],
+  );
+
   // Safely Normalize Image URLs
   const images: NormalizedImage[] = useMemo(() => {
-    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) {
+    if (
+      !product?.images ||
+      !Array.isArray(product.images) ||
+      product.images.length === 0
+    ) {
       return [{ url: "/placeholder.png" }];
     }
 
@@ -149,13 +259,11 @@ export default function ProductDetail() {
     });
   }, [product]);
 
-  // Ensure imageIndex stays within valid bounds
   const currentImage = useMemo(() => {
     if (!images || images.length === 0) return "/placeholder.png";
     return images[imageIndex]?.url || images[0]?.url || "/placeholder.png";
   }, [images, imageIndex]);
 
-  // Determine current wishlist status from store map
   const isWishlisted = id ? Boolean(wishlistStatusMap[id]) : false;
 
   const handleWishlistToggle = async () => {
@@ -167,7 +275,6 @@ export default function ProductDetail() {
     }
   };
 
-  // Suggested Products Slicing
   const suggestedProducts = useMemo(() => {
     if (!Array.isArray(products)) return [];
     return products.filter((p) => String(p.id) !== String(id)).slice(0, 4);
@@ -178,29 +285,22 @@ export default function ProductDetail() {
   const handlePrevImage = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      setImageIndex((prev) =>
-        prev === 0 ? images.length - 1 : prev - 1
-      );
+      setImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
     },
-    [images.length]
+    [images.length],
   );
 
   const handleNextImage = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      setImageIndex((prev) =>
-        prev === images.length - 1 ? 0 : prev + 1
-      );
+      setImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
     },
-    [images.length]
+    [images.length],
   );
 
-  const handleQuantityChange = useCallback(
-    (delta: number) => {
-      setQuantity((prev) => Math.max(1, prev + delta));
-    },
-    []
-  );
+  const handleQuantityChange = useCallback((delta: number) => {
+    setQuantity((prev) => Math.max(1, prev + delta));
+  }, []);
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -214,7 +314,7 @@ export default function ProductDetail() {
         console.log("Error sharing:", err);
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      void navigator.clipboard.writeText(window.location.href);
       alert("Product link copied to clipboard!");
     }
   };
@@ -263,7 +363,6 @@ export default function ProductDetail() {
     });
   };
 
-  // Persist new review to the database
   const handleAddReview = async (newRev: Omit<ReviewItem, "id" | "date">) => {
     if (!id) return;
     try {
@@ -275,9 +374,12 @@ export default function ProductDetail() {
     }
   };
 
-  // Dynamic average rating calculation
-  const totalRating = reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
-  const calculatedAverageRating = reviews.length > 0 ? totalRating / reviews.length : 0.0;
+  const totalRating = reviews.reduce(
+    (sum, review) => sum + (Number(review.rating) || 0),
+    0,
+  );
+  const calculatedAverageRating =
+    reviews.length > 0 ? totalRating / reviews.length : 0.0;
 
   if (isLoading) {
     return (
@@ -307,7 +409,6 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#050505] text-zinc-900 dark:text-gray-100 font-sans selection:bg-blue-500/30 transition-colors">
-
       {/* Auth Prompt Modal */}
       <AuthPromptModal
         isOpen={isAuthModalOpen}
@@ -319,6 +420,7 @@ export default function ProductDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm">
           <div className="bg-white dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 w-full max-w-sm p-8 rounded-3xl shadow-2xl relative transition-colors">
             <button
+              type="button"
               onClick={() => setIsCheckoutOpen(false)}
               className="absolute top-5 right-5 text-zinc-400 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
             >
@@ -370,6 +472,7 @@ export default function ProductDetail() {
       <nav className="sticky top-0 z-40 bg-white/80 dark:bg-[#050505]/80 backdrop-blur-md border-b border-zinc-200 dark:border-white/10 px-6 py-4 transition-colors">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button
+            type="button"
             onClick={() => navigate("/products")}
             className="group flex items-center gap-2 text-xs font-bold text-zinc-500 dark:text-gray-400 hover:text-zinc-900 dark:hover:text-white transition-all uppercase tracking-wider cursor-pointer"
           >
@@ -382,6 +485,7 @@ export default function ProductDetail() {
 
           <div className="flex items-center gap-4">
             <button
+              type="button"
               onClick={handleShare}
               title="Share Product"
               className="p-2 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-gray-300 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
@@ -401,7 +505,6 @@ export default function ProductDetail() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-
           {/* Gallery Section */}
           <div className="lg:col-span-7 space-y-4 lg:sticky lg:top-24">
             <div className="relative aspect-square bg-zinc-100 dark:bg-[#0b0b0b] overflow-hidden rounded-3xl border border-zinc-200 dark:border-white/10 group transition-colors shadow-sm">
@@ -414,6 +517,7 @@ export default function ProductDetail() {
               {images.length > 1 && (
                 <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none">
                   <button
+                    type="button"
                     onClick={handlePrevImage}
                     className="pointer-events-auto p-2.5 bg-black/60 backdrop-blur-md text-white rounded-xl hover:bg-black/80 transition-colors cursor-pointer border border-white/10"
                   >
@@ -421,6 +525,7 @@ export default function ProductDetail() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={handleNextImage}
                     className="pointer-events-auto p-2.5 bg-black/60 backdrop-blur-md text-white rounded-xl hover:bg-black/80 transition-colors cursor-pointer border border-white/10"
                   >
@@ -435,6 +540,7 @@ export default function ProductDetail() {
               <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                 {images.map((img, i) => (
                   <button
+                    type="button"
                     key={i}
                     onClick={() => setImageIndex(i)}
                     className={`shrink-0 w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
@@ -464,8 +570,16 @@ export default function ProductDetail() {
 
                 <div className="flex items-center gap-1 text-amber-500 ml-auto text-xs font-bold bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
                   <Star size={12} fill="currentColor" />
-                  <span>{calculatedAverageRating > 0 ? calculatedAverageRating.toFixed(1) : "No Rating"}</span>
-                  {reviews.length > 0 && <span className="text-[10px] text-zinc-400 ml-0.5">({reviews.length})</span>}
+                  <span>
+                    {calculatedAverageRating > 0
+                      ? calculatedAverageRating.toFixed(1)
+                      : "No Rating"}
+                  </span>
+                  {reviews.length > 0 && (
+                    <span className="text-[10px] text-zinc-400 ml-0.5">
+                      ({reviews.length})
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -483,15 +597,19 @@ export default function ProductDetail() {
               </div>
 
               <p className="text-zinc-600 dark:text-gray-300 text-sm leading-relaxed">
-                {product.description || "No specific product description provided."}
+                {product.description ||
+                  "No specific product description provided."}
               </p>
             </section>
 
-            {/* Vendor Card */}
+            {/* Vendor Card + Contact Info */}
             <div className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 space-y-4 transition-colors shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                  <Store size={20} className="text-blue-600 dark:text-blue-400" />
+                  <Store
+                    size={20}
+                    className="text-blue-600 dark:text-blue-400"
+                  />
                 </div>
 
                 <div>
@@ -502,6 +620,109 @@ export default function ProductDetail() {
                     {product.vendor?.storeName || "Independent Vendor"}
                   </h3>
                 </div>
+              </div>
+
+              {/* Vendor Contact Details */}
+              <div className="bg-white dark:bg-[#050505] border border-zinc-200 dark:border-white/10 rounded-2xl p-3.5 space-y-2.5 transition-colors">
+                <p className="text-[9px] uppercase text-zinc-400 dark:text-gray-400 font-bold tracking-wider">
+                  Vendor Contact Information
+                </p>
+
+                {vendorContact.phone ? (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <a
+                      href={`tel:${vendorContact.phone}`}
+                      className="flex items-center gap-2 text-zinc-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-mono truncate transition-colors"
+                    >
+                      <Phone size={13} className="text-blue-500 shrink-0" />
+                      <span className="truncate">{vendorContact.phone}</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleCopyContact(vendorContact.phone!, "phone")
+                      }
+                      title="Copy phone number"
+                      className="p-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-500 dark:text-gray-400 cursor-pointer transition-colors shrink-0"
+                    >
+                      {copiedContact === "phone" ? (
+                        <Check size={12} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+
+                {vendorContact.email ? (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <a
+                      href={`mailto:${vendorContact.email}`}
+                      className="flex items-center gap-2 text-zinc-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-mono truncate transition-colors"
+                    >
+                      <Mail size={13} className="text-blue-500 shrink-0" />
+                      <span className="truncate">{vendorContact.email}</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleCopyContact(vendorContact.email!, "email")
+                      }
+                      title="Copy email address"
+                      className="p-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-500 dark:text-gray-400 cursor-pointer transition-colors shrink-0"
+                    >
+                      {copiedContact === "email" ? (
+                        <Check size={12} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+
+                {vendorContact.location ? (
+                  <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-gray-300 font-mono">
+                    <MapPin size={13} className="text-emerald-500 shrink-0" />
+                    <span className="truncate">{vendorContact.location}</span>
+                  </div>
+                ) : null}
+
+                {!vendorContact.phone &&
+                  !vendorContact.email &&
+                  !vendorContact.location && (
+                    <p className="text-xs font-mono text-zinc-500 dark:text-gray-400">
+                      Contact details available via storefront support.
+                    </p>
+                  )}
+              </div>
+
+              {/* Shipping Information */}
+              <div className="bg-white dark:bg-[#050505] border border-zinc-200 dark:border-white/10 rounded-2xl p-3.5 space-y-2 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[9px] uppercase text-zinc-400 dark:text-gray-400 font-bold tracking-wider flex items-center gap-1.5">
+                    <Truck size={12} className="text-blue-500" />
+                    <span>Shipping Information</span>
+                  </p>
+                  <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    {shippingInfo.feeLabel}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-zinc-700 dark:text-gray-200 font-mono">
+                  <Clock size={13} className="text-blue-500 shrink-0" />
+                  <span>Est. Delivery: {shippingInfo.estimatedDelivery}</span>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-gray-300 font-mono">
+                  <MapPin size={13} className="text-amber-500 shrink-0" />
+                  <span className="truncate">
+                    Dispatches from: {shippingInfo.dispatchOrigin}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-zinc-500 dark:text-gray-400 leading-relaxed pt-0.5">
+                  {shippingInfo.notes}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -543,7 +764,10 @@ export default function ProductDetail() {
                   label={added ? "Added to Cart" : "Add to Cart"}
                   icon={added ? Check : ShoppingCart}
                   onClick={handleAddToCartClick}
-                  disabled={added || (product.stock !== undefined && product.stock <= 0)}
+                  disabled={
+                    added ||
+                    (product.stock !== undefined && product.stock <= 0)
+                  }
                   className="w-full py-4 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50"
                 />
 
@@ -564,11 +788,18 @@ export default function ProductDetail() {
                 className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 transition-colors shadow-sm"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <Check size={20} className="text-emerald-600 dark:text-emerald-400" />
+                  <Check
+                    size={20}
+                    className="text-emerald-600 dark:text-emerald-400"
+                  />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 font-bold">Trusted Node</p>
-                  <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-300">Quality Assured</h3>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 font-bold">
+                    Trusted Node
+                  </p>
+                  <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                    Quality Assured
+                  </h3>
                 </div>
               </motion.div>
 
@@ -577,11 +808,18 @@ export default function ProductDetail() {
                 className="bg-zinc-50 dark:bg-[#0b0b0b] border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center gap-4 transition-colors shadow-sm"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                  <Shield size={20} className="text-blue-600 dark:text-blue-400" />
+                  <Shield
+                    size={20}
+                    className="text-blue-600 dark:text-blue-400"
+                  />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 font-bold">Secure Node</p>
-                  <h3 className="text-sm font-black text-blue-700 dark:text-blue-300">Verified Transit</h3>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 font-bold">
+                    Secure Node
+                  </p>
+                  <h3 className="text-sm font-black text-blue-700 dark:text-blue-300">
+                    Verified Transit
+                  </h3>
                 </div>
               </motion.div>
             </div>
@@ -609,9 +847,13 @@ export default function ProductDetail() {
 
         {/* Suggested Alternatives */}
         <section className="mt-16 border-t border-zinc-200 dark:border-white/10 pt-12 transition-colors">
-          <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-zinc-900 dark:text-white">Suggested Alternatives</h2>
+          <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-zinc-900 dark:text-white">
+            Suggested Alternatives
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {suggestedProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+            {suggestedProducts.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
           </div>
           {suggestedProducts.length === 0 && (
             <p className="text-zinc-500 dark:text-gray-400 border border-zinc-200 dark:border-white/10 rounded-3xl p-5 flex items-center justify-center transition-colors shadow-sm text-sm">

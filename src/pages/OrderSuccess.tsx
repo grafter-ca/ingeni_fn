@@ -1,16 +1,61 @@
 // src/pages/OrderSuccess.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { CheckCircle, Package, ArrowRight, Printer, Clock, CreditCard, AlertCircle, Headset, Phone, MessageCircle, ShieldCheck, Copy, Check, UploadCloud } from "lucide-react";
+import {
+  CheckCircle,
+  Package,
+  ArrowRight,
+  Printer,
+  Clock,
+  CreditCard,
+  AlertCircle,
+  Headset,
+  Phone,
+  MessageCircle,
+  ShieldCheck,
+  Copy,
+  Check,
+  UploadCloud,
+} from "lucide-react";
 import { useOrderStore } from "../store/useOrderStore";
 import type { Order } from "../types/api";
 import { PaymentProofUpload } from "../components/common/PaymentProofUpload";
+import { socket } from "../libs/socket";
+
+const matchesOrderIdentifier = (
+  order: Order | null | undefined,
+  rawParam?: string,
+) => {
+  if (!order || !rawParam) return false;
+  const target = rawParam.trim().toUpperCase();
+  const orderNum = String(order.orderNumber || "").toUpperCase();
+  const orderId = String(order.id || "").toUpperCase();
+
+  return (
+    orderNum === target ||
+    orderId === target ||
+    orderId.endsWith(target) ||
+    orderId.slice(-8) === target
+  );
+};
 
 const OrderSuccess = () => {
   const { orderNumber } = useParams<{ orderNumber: string }>();
-  const { filteredOrders, fetchAllOrders } = useOrderStore();
+  const {
+    currentOrder: storeCurrentOrder,
+    orders,
+    filteredOrders,
+    initSocket,
+    fetchAllOrders,
+    fetchMyOrders,
+    fetchOrderById,
+    clearOrder,
+  } = useOrderStore();
+
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [copied, setCopied] = useState(false);
+  const hasRequestedListRef = useRef(false);
+  const hasRequestedByIdRef = useRef<string | null>(null);
 
   const supportTeam = {
     phone: "+250786015225",
@@ -19,29 +64,104 @@ const OrderSuccess = () => {
   };
 
   useEffect(() => {
-    if (!filteredOrders || filteredOrders.length === 0) {
-      void fetchAllOrders();
-    }
-  }, [filteredOrders, fetchAllOrders]);
+    initSocket();
+    return () => {
+      clearOrder();
+    };
+  }, [initSocket, clearOrder]);
 
   useEffect(() => {
-    if (orderNumber && filteredOrders) {
-      const found = filteredOrders.find(
-        (o) => o.orderNumber === orderNumber || o.id.slice(-8).toUpperCase() === orderNumber.toUpperCase()
-      );
-      if (found) {
-        setCurrentOrder(found);
-      }
+    if (
+      !hasRequestedListRef.current &&
+      orders.length === 0 &&
+      filteredOrders.length === 0
+    ) {
+      hasRequestedListRef.current = true;
+      void fetchAllOrders().catch(() => {
+        if (typeof fetchMyOrders === "function") {
+          void fetchMyOrders();
+        }
+      });
     }
-  }, [orderNumber, filteredOrders]);
+  }, [orders.length, filteredOrders.length, fetchAllOrders, fetchMyOrders]);
 
-  const paymentStatus = currentOrder?.paymentStatus || "SUCCESS";
-  const isPaid = paymentStatus === "SUCCESS";
+  useEffect(() => {
+    if (!orderNumber) return;
+
+    const candidateList = [
+      storeCurrentOrder,
+      ...(Array.isArray(orders) ? orders : []),
+      ...(Array.isArray(filteredOrders) ? filteredOrders : []),
+    ];
+
+    const matched = candidateList.find((o) =>
+      matchesOrderIdentifier(o, orderNumber),
+    );
+
+    if (matched) {
+      setCurrentOrder(matched);
+      return;
+    }
+
+    if (hasRequestedByIdRef.current !== orderNumber) {
+      hasRequestedByIdRef.current = orderNumber;
+      void fetchOrderById(orderNumber)
+        .then((fetched) => {
+          if (fetched) {
+            setCurrentOrder(fetched);
+          }
+        })
+        .catch(() => {
+          // Falls back gracefully to route orderNumber display
+        });
+    }
+  }, [
+    orderNumber,
+    storeCurrentOrder,
+    orders,
+    filteredOrders,
+    fetchOrderById,
+  ]);
+
+  useEffect(() => {
+    const handleLiveOrderSync = (payload: any) => {
+      if (payload && typeof payload === "object" && payload.id) {
+        if (
+          matchesOrderIdentifier(payload as Order, orderNumber) ||
+          String(payload.id) === String(currentOrder?.id)
+        ) {
+          setCurrentOrder((prev) => (prev ? { ...prev, ...payload } : payload));
+        }
+      }
+
+      if (currentOrder?.id) {
+        void fetchOrderById(currentOrder.id).catch(() => {});
+      } else if (orderNumber) {
+        void fetchOrderById(orderNumber).catch(() => {});
+      }
+    };
+
+    socket?.on?.("orderUpdated", handleLiveOrderSync);
+    socket?.on?.("order:updated", handleLiveOrderSync);
+    socket?.on?.("payment:updated", handleLiveOrderSync);
+
+    return () => {
+      socket?.off?.("orderUpdated", handleLiveOrderSync);
+      socket?.off?.("order:updated", handleLiveOrderSync);
+      socket?.off?.("payment:updated", handleLiveOrderSync);
+    };
+  }, [currentOrder?.id, fetchOrderById, orderNumber]);
+
+  const paymentStatus = String(
+    currentOrder?.paymentStatus || "PENDING",
+  ).toUpperCase();
+  const isPaid = paymentStatus === "SUCCESS" || paymentStatus === "PAID";
 
   const handleCopyOrderNumber = async () => {
-    if (!orderNumber) return;
+    const valueToCopy = currentOrder?.orderNumber || orderNumber;
+    if (!valueToCopy) return;
     try {
-      await navigator.clipboard.writeText(orderNumber);
+      await navigator.clipboard.writeText(valueToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch (err) {
@@ -49,9 +169,12 @@ const OrderSuccess = () => {
     }
   };
 
+  const orderItems = Array.isArray((currentOrder as any)?.items)
+    ? (currentOrder as any).items
+    : [];
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#050505] text-gray-900 dark:text-white flex items-center justify-center px-4 sm:px-6 py-12 font-poppins transition-colors duration-200">
-      
       {/* Printable Receipt Styles */}
       <style>{`
         @media print {
@@ -79,15 +202,23 @@ const OrderSuccess = () => {
         }
       `}</style>
 
-      <div id="printable-receipt" className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
+      <div
+        id="printable-receipt"
+        className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+      >
         {/* Left/Main Column: Status, Verification, and Next Steps */}
         <div className="lg:col-span-7 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-white/10 rounded-3xl p-6 sm:p-8 shadow-xl transition-all flex flex-col justify-between">
           <div>
             {/* Top Header Card / Status Section */}
             <div className="text-center pb-6 border-b border-gray-100 dark:border-white/5">
               <div className="mb-4 flex justify-center">
-                <div className={`p-4 rounded-full border ${isPaid ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-amber-500/10 border-amber-500/20 text-amber-500'}`}>
+                <div
+                  className={`p-4 rounded-full border ${
+                    isPaid
+                      ? "bg-green-500/10 border-green-500/20 text-green-500"
+                      : "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                  }`}
+                >
                   {isPaid ? (
                     <CheckCircle size={48} className="animate-pulse" />
                   ) : (
@@ -103,18 +234,19 @@ const OrderSuccess = () => {
               <h1 className="text-2xl font-black uppercase tracking-wide mb-1">
                 {isPaid ? "Order Confirmed!" : "Payment Pending Review"}
               </h1>
-              
+
               <div className="mt-2 flex flex-col items-center justify-center gap-1.5">
                 <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
-                  OrderNumber: {orderNumber}
+                  Order Number: {currentOrder?.orderNumber || orderNumber}
                 </p>
                 <button
-                  onClick={handleCopyOrderNumber}
+                  type="button"
+                  onClick={() => void handleCopyOrderNumber()}
                   title="Click to copy order Number"
                   className="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all cursor-pointer shadow-2xs"
                 >
                   <span className="text-blue-600 dark:text-blue-400 font-mono font-bold tracking-wide text-sm sm:text-base">
-                    #{orderNumber}
+                    #{currentOrder?.orderNumber || orderNumber}
                   </span>
                   {copied ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
@@ -130,34 +262,97 @@ const OrderSuccess = () => {
             </div>
 
             {/* Payment Verification Banner */}
-            <div className={`my-5 p-4 rounded-2xl border text-xs flex items-start gap-3 text-left shadow-2xs ${
-              isPaid 
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300' 
-                : 'bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300'
-            }`}>
-              {isPaid ? <CheckCircle size={18} className="shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" /> : <AlertCircle size={18} className="shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />}
+            <div
+              className={`my-5 p-4 rounded-2xl border text-xs flex items-start gap-3 text-left shadow-2xs ${
+                isPaid
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                  : "bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300"
+              }`}
+            >
+              {isPaid ? (
+                <CheckCircle
+                  size={18}
+                  className="shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5"
+                />
+              ) : (
+                <AlertCircle
+                  size={18}
+                  className="shrink-0 text-amber-600 dark:text-amber-400 mt-0.5"
+                />
+              )}
               <div className="space-y-0.5">
-                <strong className="block uppercase tracking-wider font-bold">Payment State: {paymentStatus}</strong>
+                <strong className="block uppercase tracking-wider font-bold">
+                  Payment State: {paymentStatus}
+                </strong>
                 <p className="text-gray-600 dark:text-gray-300 text-xs">
-                  {isPaid 
-                    ? "Funds verified. Fulfillment center is preparing your items." 
+                  {isPaid
+                    ? "Funds verified. Fulfillment center is preparing your items."
                     : "Please upload your payment proof below or contact support to complete verification."}
                 </p>
               </div>
             </div>
 
-            {/* Conditional Payment Proof Upload Component (Hidden on Print if not paid/if uploading) */}
+            {/* Order Summary Breakdown when matched */}
+            {currentOrder && (
+              <div className="mb-5 bg-gray-50 dark:bg-white/2 border border-gray-100 dark:border-white/5 rounded-2xl p-4 text-left space-y-2.5 text-xs">
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-gray-400 font-bold">
+                  <span>Order Summary</span>
+                  <span>{currentOrder.paymentMethod || "MOBILE_MONEY"}</span>
+                </div>
+
+                {orderItems.length > 0 && (
+                  <div className="space-y-1.5 border-y border-gray-200/70 dark:border-white/5 py-2.5">
+                    {orderItems.map((item: any, idx: number) => {
+                      const title =
+                        item?.product?.title ||
+                        item?.product?.name ||
+                        item?.name ||
+                        `Item ${idx + 1}`;
+                      const qty = Number(item?.quantity || 1);
+                      const unitPrice = Number(
+                        item?.priceAtPurchase ?? item?.product?.price ?? 0,
+                      );
+                      return (
+                        <div
+                          key={item?.id || `${title}-${idx}`}
+                          className="flex items-center justify-between gap-2 text-gray-700 dark:text-gray-300"
+                        >
+                          <span className="truncate">
+                            {title} × {qty}
+                          </span>
+                          <span className="font-mono font-semibold shrink-0">
+                            RF {(unitPrice * qty).toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between font-bold text-sm text-gray-900 dark:text-white pt-0.5">
+                  <span>Total Amount</span>
+                  <span className="font-mono text-blue-600 dark:text-blue-400">
+                    RF{" "}
+                    {Number(
+                      (currentOrder as any).totalAmount || 0,
+                    ).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Conditional Payment Proof Upload Component */}
             {!isPaid && currentOrder && (
               <div className="no-print my-6">
-                <div className="p-4 bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 rounded-2xl">
+                <div className="p-4 bg-gray-50 dark:bg-white/2 border border-gray-100 dark:border-white/5 rounded-2xl">
                   <div className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                     <UploadCloud size={16} /> Submit Proof of Payment
                   </div>
-                  <PaymentProofUpload 
-                    orderId={currentOrder.id} 
-                    orderNumber={currentOrder.orderNumber} 
+                  <PaymentProofUpload
+                    orderId={currentOrder.id}
+                    orderNumber={currentOrder.orderNumber}
                     onSuccess={() => {
-                      void fetchAllOrders();
+                      void fetchOrderById(currentOrder.id);
                     }}
                   />
                 </div>
@@ -165,9 +360,9 @@ const OrderSuccess = () => {
             )}
 
             {/* Status Timeline / Next Steps */}
-            <div className="bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 rounded-2xl p-5 text-left">
+            <div className="bg-gray-50 dark:bg-white/2 border border-gray-100 dark:border-white/5 rounded-2xl p-5 text-left">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">
-                Fulfillment Workflow & Next Steps
+                Fulfillment Workflow &amp; Next Steps
               </h3>
               <ul className="space-y-3">
                 <li className="flex gap-3 items-start">
@@ -175,7 +370,9 @@ const OrderSuccess = () => {
                     <Package size={15} />
                   </div>
                   <span className="text-xs text-gray-700 dark:text-gray-300">
-                    {isPaid ? "Items queued for secure packaging and courier handover." : "Products reserved. Automatic fulfillment unlocks upon admin verification."}
+                    {isPaid
+                      ? "Items queued for secure packaging and courier handover."
+                      : "Products reserved. Automatic fulfillment unlocks upon admin verification."}
                   </span>
                 </li>
                 <li className="flex gap-3 items-start">
@@ -183,7 +380,8 @@ const OrderSuccess = () => {
                     <Clock size={15} />
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Tracking links and SMS updates will dispatch once transit begins.
+                    Tracking links and SMS updates will dispatch once transit
+                    begins.
                   </span>
                 </li>
               </ul>
@@ -200,6 +398,7 @@ const OrderSuccess = () => {
                 Track History
               </Link>
               <button
+                type="button"
                 onClick={() => window.print()}
                 className="flex items-center justify-center gap-2 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 py-3 rounded-xl font-bold uppercase transition-all text-xs tracking-wider cursor-pointer text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10"
               >
@@ -226,15 +425,23 @@ const OrderSuccess = () => {
                 <Headset size={22} />
               </div>
               <div>
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm">Need Assistance?</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm">
+                  Need Assistance?
+                </h3>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  Handling payment verifications & fulfillment queries 24/7.
+                  Handling payment verifications &amp; fulfillment queries 24/7.
                 </p>
               </div>
             </div>
 
             <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-              If your payment proof upload fails or order status hasn't updated within a reasonable window, reach out immediately with your reference code <span className="font-mono font-bold text-blue-600 dark:text-blue-400">#{orderNumber}</span>.
+              If your payment proof upload fails or order status hasn&apos;t
+              updated within a reasonable window, reach out immediately with your
+              reference code{" "}
+              <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                #{currentOrder?.orderNumber || orderNumber}
+              </span>
+              .
             </p>
           </div>
 
@@ -243,39 +450,59 @@ const OrderSuccess = () => {
               href={`tel:${supportTeam.phone}`}
               className="p-3 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition flex items-center gap-3 border border-gray-200 dark:border-white/10 group text-xs font-medium shadow-2xs"
             >
-              <Phone size={16} className="text-blue-600 dark:text-blue-400 group-hover:text-white transition shrink-0" />
+              <Phone
+                size={16}
+                className="text-blue-600 dark:text-blue-400 group-hover:text-white transition shrink-0"
+              />
               <div className="overflow-hidden">
-                <p className="text-gray-400 text-[9px] uppercase font-bold group-hover:text-white/80">Call Support</p>
-                <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-white truncate">{supportTeam.phone}</p>
+                <p className="text-gray-400 text-[9px] uppercase font-bold group-hover:text-white/80">
+                  Call Support
+                </p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-white truncate">
+                  {supportTeam.phone}
+                </p>
               </div>
             </a>
 
             <a
-              href={`mailto:${supportTeam.email}?subject=Delayed Order Inquiry - #${orderNumber}`}
+              href={`mailto:${supportTeam.email}?subject=Delayed Order Inquiry - #${currentOrder?.orderNumber || orderNumber}`}
               className="p-3 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition flex items-center gap-3 border border-gray-200 dark:border-white/10 group text-xs font-medium shadow-2xs"
             >
-              <MessageCircle size={16} className="text-blue-600 dark:text-blue-400 group-hover:text-white transition shrink-0" />
+              <MessageCircle
+                size={16}
+                className="text-blue-600 dark:text-blue-400 group-hover:text-white transition shrink-0"
+              />
               <div className="overflow-hidden">
-                <p className="text-gray-400 text-[9px] uppercase font-bold group-hover:text-white/80">Email Desk</p>
-                <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-white truncate">{supportTeam.email}</p>
+                <p className="text-gray-400 text-[9px] uppercase font-bold group-hover:text-white/80">
+                  Email Desk
+                </p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-white truncate">
+                  {supportTeam.email}
+                </p>
               </div>
             </a>
 
             <a
-              href={`https://wa.me/${supportTeam.whatsapp.replace("+", "")}?text=Hello%20IngeniStore%20Support,%20I%20am%20inquiring%20about%20my%20order%20%23${orderNumber}`}
+              href={`https://wa.me/${supportTeam.whatsapp.replace("+", "")}?text=Hello%20IngeniStore%20Support,%20I%20am%20inquiring%20about%20my%20order%20%23${currentOrder?.orderNumber || orderNumber}`}
               target="_blank"
               rel="noopener noreferrer"
               className="p-3 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 transition flex items-center gap-3 border border-gray-200 dark:border-white/10 group text-xs font-medium shadow-2xs"
             >
-              <MessageCircle size={16} className="text-emerald-600 dark:text-emerald-400 group-hover:text-white transition shrink-0" />
+              <MessageCircle
+                size={16}
+                className="text-emerald-600 dark:text-emerald-400 group-hover:text-white transition shrink-0"
+              />
               <div className="overflow-hidden">
-                <p className="text-gray-400 text-[9px] uppercase font-bold group-hover:text-white/80">WhatsApp</p>
-                <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-white truncate">Instant Live Chat</p>
+                <p className="text-gray-400 text-[9px] uppercase font-bold group-hover:text-white/80">
+                  WhatsApp
+                </p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200 group-hover:text-white truncate">
+                  Instant Live Chat
+                </p>
               </div>
             </a>
           </div>
         </div>
-
       </div>
     </div>
   );

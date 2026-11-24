@@ -21,6 +21,7 @@ import {
 import { useAuthActions } from "../../../context/AuthContext";
 import UserTable from "../user/UserTable";
 import Pagination from "../../../components/common/Pagination";
+import { socket } from "../../../libs/socket";
 
 interface LiveSessionInfo {
   userId: string;
@@ -40,7 +41,7 @@ const RAW_VITE_API_URL = (import.meta.env.VITE_API_URL || "")
 
 const resolveApiBase = (rawUrl: string): string => {
   const isDeployedSite =
-    import.meta.env.PROD ||
+    Boolean(import.meta.env.PROD) ||
     (typeof window !== "undefined" &&
       window.location.hostname === "ingeni.onrender.com");
 
@@ -132,20 +133,27 @@ const UserManagementPage = () => {
         signal: controller.signal,
       });
 
-      if (!res.ok) {
+      const rawText = await res.text();
+      const looksLikeHtml = rawText.trim().toLowerCase().startsWith("<!doctype");
+
+      if (!res.ok || looksLikeHtml) {
         const fallbackList = buildFallbackSession();
         setLiveList(fallbackList);
         setLiveSessionsCount(fallbackList.length);
         setSessionEndpointNote(
-          `Endpoint ${endpoint} returned HTTP ${res.status} — showing active cookie session fallback.`,
+          looksLikeHtml
+            ? `Expected JSON from ${endpoint}, received HTML instead. Check VITE_API_URL or backend server port — showing active session fallback.`
+            : `Endpoint ${endpoint} returned HTTP ${res.status} — showing active cookie session fallback.`,
         );
         return;
       }
 
-      const payload = await res.json();
+      const payload = rawText ? JSON.parse(rawText) : {};
       const sessionData = payload?.data ?? payload;
       const list: any[] = Array.isArray(sessionData?.liveUsers)
         ? sessionData.liveUsers
+        : Array.isArray(sessionData?.sessions)
+        ? sessionData.sessions
         : [];
 
       const normalized = list
@@ -235,6 +243,22 @@ const UserManagementPage = () => {
     return () => {
       clearInterval(interval);
       sessionAbortRef.current?.abort();
+    };
+  }, [loadLiveSessions]);
+
+  useEffect(() => {
+    const handleSessionOrUserUpdate = () => {
+      void loadLiveSessions();
+    };
+
+    socket?.on?.("session:updated", handleSessionOrUserUpdate);
+    socket?.on?.("user:updated", handleSessionOrUserUpdate);
+    socket?.on?.("user:deleted", handleSessionOrUserUpdate);
+
+    return () => {
+      socket?.off?.("session:updated", handleSessionOrUserUpdate);
+      socket?.off?.("user:updated", handleSessionOrUserUpdate);
+      socket?.off?.("user:deleted", handleSessionOrUserUpdate);
     };
   }, [loadLiveSessions]);
 
