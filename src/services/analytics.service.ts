@@ -9,22 +9,21 @@ const recentClicks = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 1500;
 
 const resolveApiBase = (): string => {
-  const isDeployedSite =
-    import.meta.env.PROD ||
-    (typeof window !== "undefined" &&
-      window.location.hostname === "ingeni.onrender.com" || "localhost:5173");
+  const raw = (import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
 
-  if (isDeployedSite) {
-    return "/api";
+  if (raw) {
+    return raw.endsWith("/api") ? raw : `${raw}/api`;
   }
 
-  const raw = (
-    import.meta.env.VITE_API_URL || "https://ingeri-api.onrender.com/api"
-  )
-    .trim()
-    .replace(/\/+$/, "");
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
+  ) {
+    return "http://localhost:8000/api";
+  }
 
-  return raw.endsWith("/api") ? raw : `${raw}/api`;
+  return "https://ingeri-api.onrender.com/api";
 };
 
 export async function trackTrafficClick(
