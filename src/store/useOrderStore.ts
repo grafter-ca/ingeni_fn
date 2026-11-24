@@ -74,6 +74,14 @@ function mergeOrderRecord(
 }
 
 function isAuthFailure(err: unknown): boolean {
+  const status =
+    err && typeof err === "object" && "status" in err
+      ? Number((err as { status?: unknown }).status)
+      : NaN;
+  if (status === 401 || status === 403) {
+    return true;
+  }
+
   const msg =
     err && typeof err === "object" && "message" in err
       ? String((err as { message?: string }).message || "")
@@ -81,12 +89,15 @@ function isAuthFailure(err: unknown): boolean {
   return (
     msg.includes("(401)") ||
     msg.includes("(403)") ||
-    msg.toUpperCase().includes("UNAUTHORIZED")
+    msg.toUpperCase().includes("UNAUTHORIZED") ||
+    msg.toUpperCase().includes("FORBIDDEN")
   );
 }
 
-// Track in-flight list fetches to prevent burst duplicate calls
-let inFlightListFetch: Promise<void> | null = null;
+// Separate in-flight promises per endpoint so different order scopes never collide
+let inFlightMyOrders: Promise<void> | null = null;
+let inFlightVendorOrders: Promise<void> | null = null;
+let inFlightAllOrders: Promise<void> | null = null;
 
 export const useOrderStore = create<OrderState>((set, get) => ({
   loading: false,
@@ -194,14 +205,18 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   clearOrder: () => set({ currentOrder: null, error: null }),
 
   // --- RESET ALL ORDERS (e.g., on logout / role change) ---
-  resetOrders: () =>
+  resetOrders: () => {
+    inFlightMyOrders = null;
+    inFlightVendorOrders = null;
+    inFlightAllOrders = null;
     set({
       orders: [],
       filteredOrders: [],
       currentOrder: null,
       error: null,
       loading: false,
-    }),
+    });
+  },
 
   // --- CREATE ORDER ---
   createOrder: async (payload) => {
@@ -238,11 +253,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   // --- FETCH USER ORDERS ---
   fetchMyOrders: async () => {
-    if (inFlightListFetch) {
-      return inFlightListFetch;
+    if (inFlightMyOrders) {
+      return inFlightMyOrders;
     }
 
-    inFlightListFetch = (async () => {
+    inFlightMyOrders = (async () => {
       try {
         set({ loading: true, error: null });
         const orders = await OrderClient.getMyOrders();
@@ -255,11 +270,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           loading: false,
         });
       } finally {
-        inFlightListFetch = null;
+        inFlightMyOrders = null;
       }
     })();
 
-    return inFlightListFetch;
+    return inFlightMyOrders;
   },
 
   fetchOrderById: async (id: string) => {
@@ -322,11 +337,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   // --- VENDOR ORDERS ---
   fetchVendorOrders: async () => {
-    if (inFlightListFetch) {
-      return inFlightListFetch;
+    if (inFlightVendorOrders) {
+      return inFlightVendorOrders;
     }
 
-    inFlightListFetch = (async () => {
+    inFlightVendorOrders = (async () => {
       try {
         set({ loading: true, error: null });
         const orders = await OrderClient.getVendorOrders();
@@ -339,20 +354,20 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           loading: false,
         });
       } finally {
-        inFlightListFetch = null;
+        inFlightVendorOrders = null;
       }
     })();
 
-    return inFlightListFetch;
+    return inFlightVendorOrders;
   },
 
   // --- ADMIN ORDERS ---
   fetchAllOrders: async (status) => {
-    if (inFlightListFetch) {
-      return inFlightListFetch;
+    if (inFlightAllOrders) {
+      return inFlightAllOrders;
     }
 
-    inFlightListFetch = (async () => {
+    inFlightAllOrders = (async () => {
       try {
         set({ loading: true, error: null });
         const rawFilter = (status ?? get().statusFilter)?.trim();
@@ -371,11 +386,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           loading: false,
         });
       } finally {
-        inFlightListFetch = null;
+        inFlightAllOrders = null;
       }
     })();
 
-    return inFlightListFetch;
+    return inFlightAllOrders;
   },
 
   // --- UPDATE ORDER STATUS ---
